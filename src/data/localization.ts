@@ -6,7 +6,7 @@ import {
   LoanRecord,
   TransactionRecord,
 } from '../types/game';
-import { EVENT_POOL } from './events';
+import { CHARACTER_SIGNATURE_OPPORTUNITIES, EVENT_POOL } from './events';
 import { getT } from './i18n';
 import {
   ALL_HAPPINESS_ITEMS,
@@ -294,6 +294,16 @@ const EVENT_BN: Record<
     description: 'একটি বিশেষ টুলকিট লাইসেন্স করুন যা প্রতি মাসে স্থায়ী রয়্যালটি আয় দেবে।',
     impact: 'স্থায়ী অন্যান্য প্যাসিভ আয় যুক্ত করার সুযোগ',
   },
+  opp_board_game_publish: {
+    title: 'বোর্ড গেমের প্রকাশনা',
+    description: 'একটি নতুন বোর্ড গেম বাজারে প্রকাশের যৌথ উদ্যোগে বিনিয়োগ করুন। সফল হলে মাস শেষে বড় অঙ্কের মুনাফা মিলবে।',
+    impact: 'বিনিয়োগে উচ্চ মুনাফার সম্ভাবনা (ফলাফল সারসংক্ষেপে)',
+  },
+  opp_medical_conference: {
+    title: 'চিকিৎসা সম্মেলন',
+    description: 'আপনাকে একটি গুরুত্বপূর্ণ স্বাস্থ্যসেবা বিষয়ক অনুষ্ঠানে বক্তৃতা দেওয়ার জন্য আমন্ত্রণ জানানো হয়েছে। বক্তৃতার পারিশ্রমিক অর্জনের জন্য একটি উপস্থাপনা দিন, তবে যাতায়াত খরচের কথাও মাথায় রাখবেন।',
+    impact: 'বক্তার পারিশ্রমিক ও ভ্রমণ খরচ',
+  },
   exp_medical: {
     title: 'অপ্রত্যাশিত চিকিৎসা ও দন্ত ব্যয়',
     description: 'জরুরি চিকিৎসার জন্য এমন কিছু খরচ এসেছে যা আপনার সাধারণ বীমার আওতায় পড়ে না।',
@@ -572,6 +582,22 @@ function localizeEventChoice(
     };
   }
 
+  if (choice.id === 'fund_venture') {
+    return {
+      ...choice,
+      label: `${formatCurrency(choice.amount ?? 0)} বিনিয়োগ করুন`,
+      description: 'প্রকাশনার প্রাথমিক খরচ পরিশোধ করুন — ফলাফল মাস শেষে সারসংক্ষেপে দেখা যাবে।',
+    };
+  }
+
+  if (choice.id === 'accept_conference') {
+    return {
+      ...choice,
+      label: `সম্মেলনে যোগ দিন (${formatCurrency(choice.amount ?? 0)} খরচ → ${formatCurrency(choice.secondaryAmount ?? 0)} পারিশ্রমিক)`,
+      description: 'ভ্রমণ খরচ পরিশোধ করে বক্তৃতার পারিশ্রমিক সারসংক্ষেপে গ্রহণ করুন।',
+    };
+  }
+
   if (choice.id === 'pay_cash') {
     const cost = Math.abs(choice.amount ?? 0);
     return {
@@ -650,6 +676,16 @@ function localizeEventChoice(
     };
   }
 
+  if (choice.id === 'fund_signature') {
+    const cost = choice.amount ?? 300;
+    const maxPay = choice.secondaryAmount ?? Math.round(cost * 1.44);
+    return {
+      ...choice,
+      label: `বিনিয়োগ ${formatCurrency(cost)}`,
+      description: `সারসংক্ষেপে সম্ভাব্য ফেরত ${formatCurrency(maxPay)} পর্যন্ত।`,
+    };
+  }
+
   return choice;
 }
 
@@ -660,6 +696,7 @@ function localizeResolutionNote(
 ): string | undefined {
   if (!note || lang !== 'bn') return note;
   if (note === 'Opportunity expired at end of month.') return 'মাস শেষে সুযোগের মেয়াদ শেষ হয়েছে।';
+  if (note === 'Annual opportunity expired after 12 months.') return '১২ মাস মেয়াদ শেষে বার্ষিক সুযোগটি শেষ হয়েছে।';
   if (note === 'Passed / Declined') return 'এড়িয়ে যাওয়া / প্রত্যাখ্যাত';
   if (note === 'Ignored' || note === 'Ignored (Events disabled).') return 'উপেক্ষা করা হয়েছে';
   if (note === 'Pending month-end settlement') return 'বিনিয়োগকৃত — মাস শেষে ফলাফল দেখা যাবে';
@@ -738,6 +775,30 @@ export function localizeEventCard(evt: GameEventCard, lang: LanguageCode): GameE
     const gain = c?.secondaryAmount ?? 0;
     description = `${formatCurrency(cost)} বিনিয়োগ করে একটি বিশেষ টুলকিট লাইসেন্স করুন যা প্রতি মাসে স্থায়ী রয়্যালটি আয় দেবে।`;
     impact = `বিনিয়োগ ${formatCurrency(cost)} · প্রতি মাসে +${formatCurrency(gain)} অন্যান্য প্যাসিভ আয়`;
+  } else if (evt.templateId === 'opp_board_game_publish') {
+    const c = evt.choices.find((ch) => ch.id === 'fund_venture');
+    const cost = c?.amount ?? 1400;
+    const maxPay = c?.secondaryAmount ?? 3600;
+    description = `বোর্ড গেমের প্রকাশনায় ${formatCurrency(cost)} বিনিয়োগ করুন। সফল হলে সারসংক্ষেপে সর্বোচ্চ ${formatCurrency(maxPay)} পর্যন্ত আয় হতে পারে!`;
+    impact = `বিনিয়োগ ${formatCurrency(cost)} · সম্ভাব্য আয় ${formatCurrency(maxPay)}`;
+  } else if (evt.templateId === 'opp_medical_conference') {
+    const c = evt.choices.find((ch) => ch.id === 'accept_conference');
+    const travel = c?.amount ?? 1200;
+    const fee = c?.secondaryAmount ?? 2600;
+    impact = `বক্তার পারিশ্রমিক: ${formatCurrency(fee)} · ভ্রমণ খরচ: ${formatCurrency(travel)}`;
+  } else if (evt.templateId.startsWith('char_opp_')) {
+    const sigCfg = Object.values(CHARACTER_SIGNATURE_OPPORTUNITIES).find(
+      (s) => s.templateId === evt.templateId
+    );
+    const c = evt.choices.find((ch) => ch.id === 'fund_signature');
+    const cost = c?.amount ?? sigCfg?.baseCost ?? 300;
+    const minPay = Math.round((cost * (1 + (sigCfg?.minReturnPct ?? 22) / 100)) / 10) * 10;
+    const maxPay = c?.secondaryAmount ?? Math.round((cost * (1 + (sigCfg?.maxReturnPct ?? 44) / 100)) / 10) * 10;
+    if (sigCfg) {
+      title = sigCfg.titleBn;
+      description = `${sigCfg.descBn} (বিনিয়োগ ${formatCurrency(cost)} · সম্ভাব্য মোট ফেরত ${formatCurrency(minPay)}–${formatCurrency(maxPay)})।`;
+      impact = `বিনিয়োগ ${formatCurrency(cost)} · সম্ভাব্য ফেরত ${formatCurrency(minPay)} - ${formatCurrency(maxPay)}`;
+    }
   } else if (evt.category === 'expense_emergency') {
     const cost = Math.abs(evt.choices.find((c) => c.id === 'pay_cash')?.amount ?? 0);
     impact = `-${formatCurrency(cost)} নগদ খরচ (অথবা জরুরি ঋণে পরিশোধ)`;
@@ -992,10 +1053,42 @@ export function localizeTransactionText(text: string, lang: LanguageCode): strin
       const bnSym = STOCK_BN[m[2]]?.symbol ?? m[2];
       return `সুযোগ বিনিয়োগ: ${m[1]}টি ${bnSym} @ ${m[3]} (ফলাফল মাস শেষে)`;
     }
+    const rawTitle = text.slice('Opportunity Investment: '.length);
+    const matchedTpl = EVENT_POOL.find((tpl) => tpl.title === rawTitle);
+    const matchedSig = Object.values(CHARACTER_SIGNATURE_OPPORTUNITIES).find(
+      (s) => s.titleEn === rawTitle
+    );
+    const bnTitle =
+      matchedTpl && EVENT_BN[matchedTpl.id]
+        ? EVENT_BN[matchedTpl.id].title
+        : matchedSig?.titleBn ?? rawTitle;
+    return `সুযোগ বিনিয়োগ: ${bnTitle}`;
   }
   if (text.startsWith('Opportunity Settled: ')) {
     const amt = text.match(/\$[\d,.]+/)?.[0] ?? '';
     return `সুযোগ বিনিয়োগ নিষ্পত্তি (${amt})`;
+  }
+  if (text.startsWith('Venture Settled: ')) {
+    const amt = text.match(/\+?\$[\d,.]+/)?.[0] ?? '';
+    const titlePart = text
+      .slice('Venture Settled: '.length)
+      .replace(/\s*\(\+?\$[\d,.]+\)\s*$/, '')
+      .trim();
+    const matchedTpl = EVENT_POOL.find((tpl) => tpl.title === titlePart);
+    const matchedSig = Object.values(CHARACTER_SIGNATURE_OPPORTUNITIES).find(
+      (s) => s.titleEn === titlePart
+    );
+    const bnTitle =
+      matchedTpl && EVENT_BN[matchedTpl.id]
+        ? EVENT_BN[matchedTpl.id].title
+        : matchedSig?.titleBn ?? titlePart;
+    return amt ? `সুযোগ থেকে আয়: ${bnTitle} (${amt})` : `সুযোগ থেকে আয়: ${bnTitle}`;
+  }
+  if (text.startsWith('Conference Travel Expense: ')) {
+    const rawTitle = text.slice('Conference Travel Expense: '.length).trim();
+    const matchedTpl = EVENT_POOL.find((tpl) => tpl.title === rawTitle);
+    const bnTitle = matchedTpl && EVENT_BN[matchedTpl.id] ? EVENT_BN[matchedTpl.id].title : rawTitle;
+    return `ভ্রমণ খরচ: ${bnTitle}`;
   }
 
   // Fallback for Event logs containing English template title

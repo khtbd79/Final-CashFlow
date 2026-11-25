@@ -259,6 +259,14 @@ export const INSURANCE_PLANS: InsurancePlan[] = [
   },
 ];
 
+export function getEffectiveInsurancePlanPremium(
+  plan: InsurancePlan,
+  state: Pick<GameState, 'inflationMultiplier'>
+): number {
+  const inf = state.inflationMultiplier ?? 1;
+  return Math.max(50, Math.round((plan.monthlyPremium * inf) / 10) * 10);
+}
+
 export interface ProfessionAffinity {
   stocks: string[];
   crypto: string[];

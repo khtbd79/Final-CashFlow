@@ -12,7 +12,12 @@ import {
   localizeProperty,
   localizeStock,
 } from '../../data/localization';
-import { CRYPTO_CATALOG, FIXED_INCOME_PRODUCTS, STOCK_CATALOG } from '../../data/markets';
+import {
+  CRYPTO_CATALOG,
+  FIXED_INCOME_PRODUCTS,
+  REAL_ESTATE_TIER_LISTINGS,
+  STOCK_CATALOG,
+} from '../../data/markets';
 import { InvestmentSheetCategory } from '../../engine/gameEngine';
 import { formatCurrency, formatCurrencyExact, roundMoney } from '../../engine/prng';
 import {
@@ -21,6 +26,7 @@ import {
   LanguageCode,
   NavSection,
   PropertyListing,
+  RealEstateTierId,
 } from '../../types/game';
 import { RealEstateTierIllustration } from '../common/LifestyleIllustrations';
 
@@ -373,89 +379,17 @@ const CreamSplineChart: React.FC<{ values: number[] }> = React.memo(({ values })
   );
 });
 
-const REAL_ESTATE_TIERS: {
-  tier: 'economy' | 'standard' | 'premium' | 'luxury';
-  color: string;
-  gradientClass: string;
-  listing: PropertyListing;
-}[] = [
-  {
-    tier: 'economy',
-    color: '#60B5F7',
-    gradientClass: 'bg-gradient-to-b from-[#E4F2FF] to-[#8CD0FC]',
-    listing: {
-      id: 're_tier_economy',
-      name: 'Economy Class Property',
-      type: 'rental',
-      location: 'Residential Zone',
-      purchasePrice: 30000,
-      downPayment: 30000,
-      loanAmount: 0,
-      loanAnnualRate: 0,
-      loanTermMonths: 0,
-      monthlyRentalIncome: 235,
-      maintenanceExpense: 55,
-      description: 'Affordable residential block generating 6–8% annual rental yield.',
-    },
-  },
-  {
-    tier: 'standard',
-    color: '#A78BFA',
-    gradientClass: 'bg-gradient-to-b from-[#F4EBFF] to-[#B78BF7]',
-    listing: {
-      id: 're_tier_standard',
-      name: 'Standard Class Property',
-      type: 'rental',
-      location: 'Metro Suburb',
-      purchasePrice: 55000,
-      downPayment: 55000,
-      loanAmount: 0,
-      loanAnnualRate: 0,
-      loanTermMonths: 0,
-      monthlyRentalIncome: 385,
-      maintenanceExpense: 100,
-      description: 'Contemporary apartment building delivering 5–7% annual rental yield.',
-    },
-  },
-  {
-    tier: 'premium',
-    color: '#DED03A',
-    gradientClass: 'bg-gradient-to-b from-[#FFFBE4] to-[#F3DD63]',
-    listing: {
-      id: 're_tier_premium',
-      name: 'Premium Class Property',
-      type: 'commercial',
-      location: 'Central Metro',
-      purchasePrice: 115000,
-      downPayment: 115000,
-      loanAmount: 0,
-      loanAnnualRate: 0,
-      loanTermMonths: 0,
-      monthlyRentalIncome: 680,
-      maintenanceExpense: 190,
-      description: 'High-grade urban residence & retail block with 4–6% annual rental yield.',
-    },
-  },
-  {
-    tier: 'luxury',
-    color: '#F98D46',
-    gradientClass: 'bg-gradient-to-b from-[#FFF1E5] to-[#F79F5B]',
-    listing: {
-      id: 're_tier_luxury',
-      name: 'Luxury Class Property',
-      type: 'residential',
-      location: 'Prime District',
-      purchasePrice: 240000,
-      downPayment: 240000,
-      loanAmount: 0,
-      loanAnnualRate: 0,
-      loanTermMonths: 0,
-      monthlyRentalIncome: 1040,
-      maintenanceExpense: 340,
-      description: 'Flagship luxury estate combining prestige asset value and 2–4% rental yield.',
-    },
-  },
-];
+const REAL_ESTATE_TIER_GRADIENTS: Record<RealEstateTierId, string> = {
+  economy: 'bg-gradient-to-b from-[#E4F2FF] to-[#8CD0FC]',
+  standard: 'bg-gradient-to-b from-[#F4EBFF] to-[#B78BF7]',
+  premium: 'bg-gradient-to-b from-[#FFFBE4] to-[#F3DD63]',
+  luxury: 'bg-gradient-to-b from-[#FFF1E5] to-[#F79F5B]',
+};
+
+const REAL_ESTATE_TIERS = REAL_ESTATE_TIER_LISTINGS.map((entry) => ({
+  ...entry,
+  gradientClass: REAL_ESTATE_TIER_GRADIENTS[entry.tier],
+}));
 
 const REAL_ESTATE_SERIES: { color: string; values: number[] }[] = [
   {

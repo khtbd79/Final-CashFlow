@@ -248,6 +248,7 @@ export interface TranslationPack {
     educationSalaryPrefix: string;
     educationCompleted: string;
     educationYearDone: string;
+    educationLockedPrevPrefix: string;
   };
   finances: {
     title: string;
@@ -400,6 +401,7 @@ export interface TranslationPack {
     reYieldStandard: string;
     reYieldPremium: string;
     reYieldLuxury: string;
+    reLockedPrevPrefix: string;
   };
   properties: {
     title: string;
@@ -950,7 +952,7 @@ const EN: TranslationPack = {
     lotteryCostLbl: 'Ticket',
     lotteryTopPrizeLbl: 'Top Jackpot',
     lotteryBuyBtn: 'Buy Ticket',
-    lotteryPlayedBadge: 'Drawn',
+    lotteryPlayedBadge: 'Ticket Bought',
     lotteryRandomTag: 'Pure Random',
     insuranceSubtitle: 'If an accident occurs, insurance covers your expenses.',
     happinessSubtitle: 'Boost your happiness and enjoy life experiences.',
@@ -980,6 +982,7 @@ const EN: TranslationPack = {
     educationSalaryPrefix: 'Salary',
     educationCompleted: 'Completed',
     educationYearDone: '1/1 this year',
+    educationLockedPrevPrefix: 'Complete first:',
   },
   finances: {
     title: 'My Financial Statements',
@@ -1133,6 +1136,7 @@ const EN: TranslationPack = {
     reYieldStandard: '5–7%',
     reYieldPremium: '4–6%',
     reYieldLuxury: '2–4%',
+    reLockedPrevPrefix: 'Acquire first:',
   },
   properties: {
     title: 'Real Estate Market & Holdings',
@@ -1722,7 +1726,7 @@ const BN: TranslationPack = {
     lotteryCostLbl: 'টিকিট মূল্য',
     lotteryTopPrizeLbl: 'সর্বোচ্চ জ্যাকপট',
     lotteryBuyBtn: 'টিকিট কিনুন',
-    lotteryPlayedBadge: 'খেলা হয়েছে',
+    lotteryPlayedBadge: 'কেনা হয়েছে',
     lotteryRandomTag: 'সম্পূর্ণ র‍্যান্ডম',
     insuranceSubtitle: 'আপনার কোনো দুর্ঘটনা ঘটলে, বীমা আপনার সমস্ত খরচ বহন করবে।',
     happinessSubtitle: 'আপনার সুখ বাড়ান এবং জীবনের আনন্দ উপভোগ করুন।',
@@ -1752,6 +1756,7 @@ const BN: TranslationPack = {
     educationSalaryPrefix: 'বেতনে',
     educationCompleted: 'সম্পন্ন',
     educationYearDone: 'এই বছরে ১টি সম্পন্ন',
+    educationLockedPrevPrefix: 'আগে সম্পন্ন করুন:',
   },
   finances: {
     title: 'আমার আর্থিক বিবরণী',
@@ -1895,7 +1900,7 @@ const BN: TranslationPack = {
     helpBonds: 'স্লাইডার ডানদিকে টেনে সরকারি বন্ড ও সঞ্চয়ে জমা করুন। প্রতি মাসে নির্ধারিত সুদ মূল ব্যালেন্সে জমা হয়। হলুদ ডলার আইকনে ক্লিক করে একই স্লাইডার টেনে প্রয়োজনমতো টাকা ফেরত আনতে পারবেন।',
     helpCrypto: 'উচ্চ-অস্থির ক্রিপ্টো সম্পদ (কোনো মাসিক লভ্যাংশ নেই)। স্লাইডার ডানদিকে টেনে বিনিয়োগ করুন অথবা হলুদ ডলার আইকনে ক্লিক করে স্লাইডার দিয়ে পরিমাণমতো টাকা ব্যালেন্সে ফেরত আনুন।',
     helpGold: 'নিরাপদ সোনা রিজার্ভ—বাজার ধসের সময় দাম বাড়ে এবং প্রতি মাসে লভ্যাংশ দেয়। স্লাইডার ডানদিকে টেনে বিনিয়োগ করুন অথবা ডলার আইকনে ক্লিক করে স্লাইডার দিয়ে প্রয়োজনমতো টাকা তুলুন।',
-    helpRealEstate: 'মাসিক প্যাসিভ ভাড়া আয় পেতে বিভিন্ন শ্রেণীর রিয়েল এস্টেটে বিনিয়োগ করুন। পর্যাপ্ত নগদ থাকলে পছন্দের কার্ডে বিনিয়োগ করুন বা নিচে মালিকানাধীন প্রপার্টি বিক্রি করুন।',
+    helpRealEstate: 'মাসিক প্যাসিভ ভাড়া আয় পেতে যেকোনো শ্রেণীর রিয়েল এস্টেটে বিনিয়োগ করুন। পর্যাপ্ত নগদ থাকলে পছন্দের যেকোনো কার্ডে বিনিয়োগ করুন বা নিচে মালিকানাধীন প্রপার্টি বিক্রি করুন।',
     rentalYieldHeader: 'ভাড়া থেকে আয়',
     reTierEconomy: 'ইকোনমি ক্লাস',
     reTierStandard: 'স্ট্যান্ডার্ড ক্লাস',
@@ -1905,6 +1910,7 @@ const BN: TranslationPack = {
     reYieldStandard: '৫-৭%',
     reYieldPremium: '৪-৬%',
     reYieldLuxury: '২-৪%',
+    reLockedPrevPrefix: 'আগে অর্জন করুন:',
   },
   properties: {
     title: 'প্রপার্টি বাজার ও মালিকানা',

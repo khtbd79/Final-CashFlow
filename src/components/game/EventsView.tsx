@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckCircle2, EyeOff, Plus, X } from 'lucide-react';
+import { getCharacterSignatureConfig } from '../../data/events';
 import { getT } from '../../data/i18n';
 import { localizeEventCard } from '../../data/localization';
 import { formatCurrency } from '../../engine/prng';
@@ -154,6 +155,57 @@ function buildEventMetricRows(
       {
         label: isBn ? 'বিনিয়োগ' : 'Investment',
         value: formatCurrency(cost),
+      },
+    ];
+  }
+
+  if (evt.templateId === 'opp_board_game_publish') {
+    const c = evt.choices.find((ch) => ch.id === 'fund_venture');
+    const cost = c?.amount ?? 1400;
+    const maxPay = c?.secondaryAmount ?? 3600;
+    return [
+      {
+        label: isBn ? 'বিনিয়োগ' : 'Investment',
+        value: formatCurrency(cost),
+      },
+      {
+        label: isBn ? 'সম্ভাব্য আয়' : 'Potential Payout',
+        value: formatCurrency(maxPay),
+      },
+    ];
+  }
+
+  if (evt.templateId === 'opp_medical_conference') {
+    const c = evt.choices.find((ch) => ch.id === 'accept_conference');
+    const travel = c?.amount ?? 1200;
+    const fee = c?.secondaryAmount ?? 2600;
+    return [
+      {
+        label: isBn ? 'বক্তার পারিশ্রমিক' : 'Speaker Fee',
+        value: formatCurrency(fee),
+      },
+      {
+        label: isBn ? 'ভ্রমণ খরচ' : 'Travel Expense',
+        value: formatCurrency(travel),
+      },
+    ];
+  }
+
+  if (evt.isCharacterSignature || evt.templateId.startsWith('char_opp_')) {
+    const c = evt.choices.find((ch) => ch.id === 'fund_signature');
+    const sigCfg = getCharacterSignatureConfig(game.professionId);
+    const cost = c?.amount ?? sigCfg.baseCost;
+    const minPayout = Math.round((cost * (1 + sigCfg.minReturnPct / 100)) / 10) * 10;
+    const maxPayout =
+      c?.secondaryAmount ?? Math.round((cost * (1 + sigCfg.maxReturnPct / 100)) / 10) * 10;
+    return [
+      {
+        label: isBn ? 'বিনিয়োগ' : 'Investment',
+        value: formatCurrency(cost),
+      },
+      {
+        label: isBn ? 'সম্ভাব্য মোট আয়' : 'Expected Return',
+        value: `${formatCurrency(minPayout)} – ${formatCurrency(maxPayout)}`,
       },
     ];
   }
@@ -344,6 +396,25 @@ export const EventsView: React.FC<EventsViewProps> = ({
                     exceedsBorrowing;
                 }
 
+                const isBn = language === 'bn';
+                const isSignature =
+                  Boolean(evt.isCharacterSignature) || evt.templateId.startsWith('char_opp_');
+                const isAnnual = evt.durationType === 'annual';
+                const monthsLeft = Math.max(1, evt.remainingMonths ?? (isAnnual ? 12 : 1));
+                const durationLabel = isSignature
+                  ? isBn
+                    ? `প্রতি মাসের নিজস্ব সুযোগ · ${t.monthLabel} ${evt.turnGenerated}`
+                    : `Signature Monthly Opportunity · Mo ${evt.turnGenerated}`
+                  : evt.category === 'opportunity'
+                    ? isAnnual
+                      ? isBn
+                        ? `বার্ষিক সুযোগ · ${monthsLeft} মাস বাকি`
+                        : `Annual Opportunity · ${monthsLeft} mo left`
+                      : isBn
+                        ? 'মাসিক সুযোগ · শুধুমাত্র এই মাস'
+                        : 'Monthly Opportunity · This Month'
+                    : `${categoryLabel} · ${t.monthLabel} ${evt.turnGenerated}`;
+
                 return (
                   <article
                     key={evt.id}
@@ -353,8 +424,8 @@ export const EventsView: React.FC<EventsViewProps> = ({
                       {/* Top Header: Kicker + Title on Left, Isometric Illustration on Right */}
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1 pt-0.5">
-                          <div className="text-xs font-medium text-[#7A6E65]">
-                            {categoryLabel} · {t.monthLabel} {evt.turnGenerated}
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-[#7A6E65]">
+                            <span>{durationLabel}</span>
                           </div>
                           <h3 className="mt-1 font-display text-lg sm:text-xl font-bold text-[#26201C] leading-snug text-balance">
                             {evt.title}

@@ -1,4 +1,5 @@
 import {
+  getEffectiveInsurancePlanPremium,
   getEffectivePersonalAssetInsurance,
   getPersonalAssetById,
   INSURANCE_PLANS,
@@ -173,8 +174,8 @@ export function computeFinancialSummary(state: GameState): FinancialSummary {
     return sum + getEffectivePersonalAssetInsurance(getPersonalAssetById(asset.id), state);
   }, 0);
   const insuranceMonthlyCost = roundMoney(
-    (state.healthInsured ? healthPlan.monthlyPremium : 0) +
-      (state.propertyInsured ? propPlan.monthlyPremium : 0) +
+    (state.healthInsured ? getEffectiveInsurancePlanPremium(healthPlan, state) : 0) +
+      (state.propertyInsured ? getEffectiveInsurancePlanPremium(propPlan, state) : 0) +
       personalAssetsInsurance
   );
 

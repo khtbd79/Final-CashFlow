@@ -73,11 +73,16 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
   const capitalValue =
     summary.totalAssetsAfter ?? summary.cashAfter ?? Math.max(0, summary.netWorthAfter ?? 0);
   const goalValue = summary.freedomCapitalGoal ?? 175000;
-  const freedomPct = Math.min(100, Math.max(0, Math.round(summary.freedomProgressPctAfter ?? 0)));
+  const capitalPct =
+    summary.capitalProgressPct ??
+    (goalValue > 0
+      ? Math.min(100, Math.max(0, Math.round((capitalValue / goalValue) * 100)))
+      : 0);
   const salaryChangePct = summary.salaryChangePct ?? 0;
 
   const investmentResults = summary.investmentResults ?? [];
   const desireImpacts = summary.desireImpacts ?? [];
+  const subscriptionImpacts = summary.subscriptionImpacts ?? [];
   const eventCards = summary.eventSummaryCards ?? [];
 
   const viewEventsText =
@@ -176,11 +181,11 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
 
           <div className="relative mt-3 h-7 w-full overflow-hidden rounded-full bg-white shadow-inner">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-[#22C55E] to-[#169C5E] transition-all duration-500"
-              style={{ width: `${freedomPct}%` }}
+              className="h-full rounded-full bg-gradient-to-r from-[#56C2F6] to-[#38BDF8] transition-all duration-500"
+              style={{ width: `${capitalPct}%` }}
             />
             <div className="absolute inset-0 flex items-center justify-center font-mono text-sm font-bold text-[#26201C] tabular-nums">
-              {freedomPct}%
+              {capitalPct}%
             </div>
           </div>
         </section>
@@ -297,6 +302,43 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
           </div>
         </section>
 
+        {/* Subscriptions Section (সাবস্ক্রিপশন) */}
+        {subscriptionImpacts.length > 0 && (
+          <section className="space-y-2.5">
+            <h3 className="font-display text-lg font-bold text-white">
+              {isBn ? 'সাবস্ক্রিপশন' : 'Subscriptions'}
+            </h3>
+
+            <div className="space-y-2.5">
+              {subscriptionImpacts.map((item) => {
+                const isPos = item.delta >= 0;
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-2xl bg-[#F6E7D7] px-4 py-3.5 text-[#26201C] shadow-md flex items-center justify-between gap-3"
+                  >
+                    <span className="text-base font-bold text-[#26201C]">
+                      {isBn ? item.labelBn : item.labelEn}
+                    </span>
+                    <div className="inline-flex items-center gap-2 font-mono text-base font-bold tabular-nums">
+                      <span className={isPos ? 'text-[#169C5E]' : 'text-[#EF5A5A]'}>
+                        {formatSignedNum(item.delta)}
+                      </span>
+                      <span
+                        className={`flex h-6 w-6 items-center justify-center rounded-full text-white ${
+                          isPos ? 'bg-[#22C55E]' : 'bg-[#F87171]'
+                        }`}
+                      >
+                        {isPos ? <Smile className="h-4 w-4" /> : <Frown className="h-4 w-4" />}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* Events Section (ইভেন্টগুলি) */}
         {eventCards.length > 0 && (
           <section className="space-y-3">
@@ -324,56 +366,69 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
                     <div className="mb-3">
                       <TurnSummaryEventIllustration
                         kind={card.kind}
+                        templateId={card.templateId}
                         isInsuredCard={isInsuredCard}
                         className="h-16 w-16 sm:h-20 sm:w-20 mx-auto"
                       />
                     </div>
 
-                    <div className="inline-flex items-center justify-center gap-1.5">
-                      <h4 className="font-display text-base sm:text-lg font-bold text-[#26201C]">
-                        {title}
-                      </h4>
-                      {card.kind === 'inflation' && (
-                        <button
-                          type="button"
-                          onClick={() => setShowInflationHelp((prev) => !prev)}
-                          className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#26201C]/70 text-[#26201C] hover:bg-black/5"
-                          aria-label={isBn ? 'মুদ্রাস্ফীতি তথ্য' : 'Inflation info'}
-                        >
-                          <span className="font-mono text-[11px] font-bold">?</span>
-                        </button>
-                      )}
-                    </div>
+                    {title && (
+                      <div className="inline-flex items-center justify-center gap-1.5">
+                        <h4 className="font-display text-base sm:text-lg font-bold text-[#26201C]">
+                          {title}
+                        </h4>
+                        {card.kind === 'inflation' && (
+                          <button
+                            type="button"
+                            onClick={() => setShowInflationHelp((prev) => !prev)}
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#26201C]/70 text-[#26201C] hover:bg-black/5"
+                            aria-label={isBn ? 'মুদ্রাস্ফীতি তথ্য' : 'Inflation info'}
+                          >
+                            <span className="font-mono text-[11px] font-bold">?</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     {card.kind === 'inflation' && showInflationHelp && (
                       <div className="mt-2 rounded-xl bg-white/85 px-3 py-2 text-xs text-[#4A423C] leading-relaxed">
                         {isBn
-                          ? 'প্রতি বছর শেষে মুদ্রাস্ফীতি নির্ধারিত হয়। "+" চিহ্ন মানে পণ্য ও জীবনযাত্রার খরচ সেই শতাংশ হারে বেড়েছে; আর নিচের ব্যাজ থেকে দেখতে পাবেন আগের বছরের তুলনায় মুদ্রাস্ফীতির হার বেড়েছে নাকি কমেছে।'
+                          ? 'প্রতি বছর শেষে মুদ্রাস্ফীতি নির্ধারিত হয়। "+" চিহ্ন মানে পণ্য, বীমা, শিক্ষা ও জীবনযাত্রার খরচ সেই শতাংশ হারে বেড়েছে; আর নিচের ব্যাজ থেকে দেখতে পাবেন আগের বছরের তুলনায় মুদ্রাস্ফীতির হার বেড়েছে নাকি কমেছে।'
                           : 'Inflation updates once per year. "+" means living expenses, insurance, and tuition rose by that percentage, and the badge below compares the new rate against last year.'}
                       </div>
                     )}
 
-                    <p className="mt-1.5 text-xs sm:text-sm leading-relaxed text-[#5E544C]">
-                      {desc}
-                    </p>
+                    {desc && (
+                      <p className="mt-1.5 text-xs sm:text-sm leading-relaxed text-[#4A423C] font-medium">
+                        {desc}
+                      </p>
+                    )}
+
+                    {card.amountDisplay !== undefined && card.kind !== 'inflation' && (
+                      <div
+                        className={`mt-2.5 font-mono text-xl font-bold tabular-nums ${
+                          card.amountDisplay >= 0 ? 'text-[#169C5E]' : 'text-[#DC2626]'
+                        }`}
+                      >
+                        {card.amountDisplay >= 0
+                          ? formatCurrency(card.amountDisplay)
+                          : `-${formatCurrency(Math.abs(card.amountDisplay))}`}
+                      </div>
+                    )}
 
                     {card.kind === 'inflation' && card.highlightPct !== undefined && (
-                      <div className="mt-3 space-y-2">
+                      <div className="mt-2.5 space-y-2">
                         <div
                           className={`inline-flex items-center justify-center gap-1.5 font-mono text-2xl font-extrabold tabular-nums ${
-                            card.highlightPct > 0 ? 'text-[#DC2626]' : 'text-[#169C5E]'
+                            card.highlightPct > 0 ? 'text-[#26201C]' : 'text-[#169C5E]'
                           }`}
                         >
                           {card.highlightPct > 0 ? (
-                            <TrendingUp className="h-6 w-6" />
+                            <TrendingUp className="h-5 w-5 text-[#DC2626]" />
                           ) : (
-                            <TrendingDown className="h-6 w-6" />
+                            <TrendingDown className="h-5 w-5 text-[#169C5E]" />
                           )}
-                          <span>
-                            {card.highlightPct > 0
-                              ? `+${card.highlightPct}%`
-                              : `${card.highlightPct}%`}
-                          </span>
+                          <span>{card.highlightPct}%</span>
                         </div>
 
                         <div>
@@ -421,7 +476,7 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
                     )}
 
                     {resultText && (
-                      <div className="mt-3.5 pt-3 border-t border-[#DFCBB5] text-sm font-bold text-[#26201C]">
+                      <div className="mt-3 pt-2.5 border-t border-[#DFCBB5] text-sm font-bold text-[#26201C]">
                         {resultText}
                       </div>
                     )}

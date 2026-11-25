@@ -145,11 +145,32 @@ function getEventIllustrationSrc(
   if (templateId === 'opp_business_kiosk_partner') {
     return clayEventKioskImg;
   }
-  if (templateId === 'opp_side_consulting') {
+  if (templateId === 'opp_side_consulting' || templateId === 'opp_medical_conference') {
     return clayEventConferenceImg;
+  }
+  if (templateId === 'opp_board_game_publish') {
+    return clayEventKioskImg;
   }
   if (templateId === 'opp_royalty_license') {
     return clayEventRoyaltyImg;
+  }
+  if (templateId === 'char_opp_teacher' || templateId === 'char_opp_software_developer') {
+    return templateId === 'char_opp_teacher' ? clayEduBooksImg : clayEduOnlineImg;
+  }
+  if (templateId === 'char_opp_doctor') {
+    return clayEventMedicalImg;
+  }
+  if (templateId === 'char_opp_engineer' || templateId === 'char_opp_government_employee') {
+    return clayEventKioskImg;
+  }
+  if (templateId === 'char_opp_business_owner' || templateId === 'char_opp_banker') {
+    return clayEventStocksImg;
+  }
+  if (templateId === 'char_opp_office_clerk') {
+    return clayEventRoyaltyImg;
+  }
+  if (templateId === 'char_opp_lawyer' || templateId === 'char_opp_freelancer') {
+    return clayEventConferenceImg;
   }
   if (templateId === 'exp_medical') {
     return clayEventMedicalImg;
@@ -208,17 +229,39 @@ export const RealEstateTierIllustration: React.FC<{
 
 export const TurnSummaryEventIllustration: React.FC<{
   kind: TurnEventSummaryCard['kind'];
+  templateId?: string;
   isInsuredCard?: boolean;
   className?: string;
-}> = ({ kind, isInsuredCard = false, className = 'h-16 w-16 sm:h-20 sm:w-20 mx-auto' }) => {
+}> = ({
+  kind,
+  templateId,
+  isInsuredCard = false,
+  className = 'h-16 w-16 sm:h-20 sm:w-20 mx-auto',
+}) => {
   let src = clayEventMilestoneImg;
 
   if (kind === 'inflation') {
     src = clayInflationCoinImg;
+  } else if (kind === 'lottery_win' || kind === 'lottery_loss' || templateId === 'lottery') {
+    src = clayLotteryImg;
   } else if (isInsuredCard) {
     src = clayInsuranceHealthImg;
+  } else if (templateId) {
+    const inferredCategory: 'opportunity' | 'expense_emergency' | 'life_event' =
+      templateId.startsWith('exp_')
+        ? 'expense_emergency'
+        : templateId.startsWith('life_')
+          ? 'life_event'
+          : 'opportunity';
+    src = getEventIllustrationSrc(templateId, inferredCategory);
   } else {
     switch (kind) {
+      case 'venture_win':
+        src = clayEventStocksImg;
+        break;
+      case 'venture_loss':
+        src = clayEventExpenseImg;
+        break;
       case 'black_swan':
         src = clayInflationCoinImg;
         break;

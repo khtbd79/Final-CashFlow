@@ -3,6 +3,7 @@ import {
   CryptoDefinition,
   FixedIncomeProduct,
   PropertyListing,
+  RealEstateTierId,
   StockDefinition,
 } from '../types/game';
 
@@ -154,6 +155,95 @@ export const FIXED_INCOME_PRODUCTS: FixedIncomeProduct[] = [
     description: 'Longer-term municipal bond delivering 7.6% APY monthly passive interest over 12 months.',
   },
 ];
+
+export interface RealEstateTierDef {
+  tier: RealEstateTierId;
+  color: string;
+  listing: PropertyListing;
+}
+
+export const REAL_ESTATE_TIER_LISTINGS: RealEstateTierDef[] = [
+  {
+    tier: 'economy',
+    color: '#60B5F7',
+    listing: {
+      id: 're_tier_economy',
+      name: 'Economy Class Property',
+      type: 'rental',
+      location: 'Residential Zone',
+      purchasePrice: 30000,
+      downPayment: 30000,
+      loanAmount: 0,
+      loanAnnualRate: 0,
+      loanTermMonths: 0,
+      monthlyRentalIncome: 235,
+      maintenanceExpense: 55,
+      description: 'Affordable residential block generating 6–8% annual rental yield.',
+    },
+  },
+  {
+    tier: 'standard',
+    color: '#A78BFA',
+    listing: {
+      id: 're_tier_standard',
+      name: 'Standard Class Property',
+      type: 'rental',
+      location: 'Metro Suburb',
+      purchasePrice: 55000,
+      downPayment: 55000,
+      loanAmount: 0,
+      loanAnnualRate: 0,
+      loanTermMonths: 0,
+      monthlyRentalIncome: 385,
+      maintenanceExpense: 100,
+      description: 'Contemporary apartment building delivering 5–7% annual rental yield.',
+    },
+  },
+  {
+    tier: 'premium',
+    color: '#DED03A',
+    listing: {
+      id: 're_tier_premium',
+      name: 'Premium Class Property',
+      type: 'commercial',
+      location: 'Central Metro',
+      purchasePrice: 115000,
+      downPayment: 115000,
+      loanAmount: 0,
+      loanAnnualRate: 0,
+      loanTermMonths: 0,
+      monthlyRentalIncome: 680,
+      maintenanceExpense: 190,
+      description: 'High-grade urban residence & retail block with 4–6% annual rental yield.',
+    },
+  },
+  {
+    tier: 'luxury',
+    color: '#F98D46',
+    listing: {
+      id: 're_tier_luxury',
+      name: 'Luxury Class Property',
+      type: 'residential',
+      location: 'Prime District',
+      purchasePrice: 240000,
+      downPayment: 240000,
+      loanAmount: 0,
+      loanAnnualRate: 0,
+      loanTermMonths: 0,
+      monthlyRentalIncome: 1040,
+      maintenanceExpense: 340,
+      description: 'Flagship luxury estate combining prestige asset value and 2–4% rental yield.',
+    },
+  },
+];
+
+export function findRealEstateTierIndex(
+  listing: Pick<PropertyListing, 'id' | 'name'>
+): number {
+  return REAL_ESTATE_TIER_LISTINGS.findIndex(
+    (entry) => entry.listing.id === listing.id || entry.listing.name === listing.name
+  );
+}
 
 export const PROPERTY_TEMPLATES: Omit<PropertyListing, 'id'>[] = [
   {

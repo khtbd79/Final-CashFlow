@@ -3,6 +3,7 @@ import { EventCategory, PropertyListing, BusinessListing } from '../types/game';
 export interface EventTemplate {
   id: string;
   category: EventCategory;
+  durationType?: 'monthly' | 'annual';
   weight: number;
   title: string;
   description: string;
@@ -13,6 +14,8 @@ export interface EventTemplate {
     | 'business_deal'
     | 'side_hustle'
     | 'other_passive_income'
+    | 'venture_opportunity'
+    | 'speaking_opportunity'
     | 'dividend_windfall'
     | 'medical_bill'
     | 'car_repair'
@@ -36,10 +39,11 @@ export interface EventTemplate {
 }
 
 export const EVENT_POOL: EventTemplate[] = [
-  // OPPORTUNITIES
+  // OPPORTUNITIES (Monthly short-term vs Annual 12-month long-term)
   {
     id: 'opp_stock_nvda_block',
     category: 'opportunity',
+    durationType: 'monthly',
     weight: 12,
     title: 'Private Placement: NovaCore Block',
     description: 'An institutional broker offers an off-market block of 25 shares of NovaCore Semiconductors (NVDAX) at 18% below market price.',
@@ -52,6 +56,7 @@ export const EVENT_POOL: EventTemplate[] = [
   {
     id: 'opp_stock_vltg_block',
     category: 'opportunity',
+    durationType: 'monthly',
     weight: 12,
     title: 'Dividend Share Offering: VoltGrid',
     description: 'A retiring colleague wants to liquidate 40 shares of VoltGrid Energy (VLTG) quickly at a 15% discount.',
@@ -64,7 +69,8 @@ export const EVENT_POOL: EventTemplate[] = [
   {
     id: 'opp_property_distressed_duplex',
     category: 'opportunity',
-    weight: 10,
+    durationType: 'annual',
+    weight: 11,
     title: 'Off-Market Distressed Duplex',
     description: 'A motivated seller needs a fast close on a 2-unit duplex below neighborhood comps. Requires $16,000 down payment.',
     financialImpactSummary: 'Price $80,000 · Down $16,000 · Rent $1,240/mo · Maint $240/mo',
@@ -86,7 +92,8 @@ export const EVENT_POOL: EventTemplate[] = [
   {
     id: 'opp_property_starter_condo',
     category: 'opportunity',
-    weight: 11,
+    durationType: 'annual',
+    weight: 12,
     title: 'Foreclosure Condo Auction',
     description: 'A bank-owned 1-bedroom rental condo is available privately for $38,000 with just $7,600 down.',
     financialImpactSummary: 'Price $38,000 · Down $7,600 · Rent $590/mo · Maint $115/mo',
@@ -108,7 +115,8 @@ export const EVENT_POOL: EventTemplate[] = [
   {
     id: 'opp_business_kiosk_partner',
     category: 'opportunity',
-    weight: 9,
+    durationType: 'annual',
+    weight: 10,
     title: 'Automated Parcel Locker Network',
     description: 'Partner in a turnkey apartment parcel-locker kiosk route already installed across 8 residential lobbies.',
     financialImpactSummary: 'Cost $19,500 · Passive Revenue $1,580/mo · Operating Exp $760/mo',
@@ -130,6 +138,7 @@ export const EVENT_POOL: EventTemplate[] = [
   {
     id: 'opp_side_consulting',
     category: 'opportunity',
+    durationType: 'monthly',
     weight: 12,
     title: 'Weekend Advisory Contract',
     description: 'An industry acquaintance invites you to deliver a weekend workshop and advisory sprint.',
@@ -140,13 +149,38 @@ export const EVENT_POOL: EventTemplate[] = [
   {
     id: 'opp_royalty_license',
     category: 'opportunity',
-    weight: 7,
+    durationType: 'annual',
+    weight: 9,
     title: 'Digital Template Licensing Deal',
     description: 'Invest $3,500 to package and license a niche industry toolkit that pays recurring monthly royalties.',
     financialImpactSummary: 'Invest $3,500 · Gain +$210/mo Other Passive Income',
     kind: 'other_passive_income',
     cashAmount: 3500,
     secondaryAmount: 210,
+  },
+  {
+    id: 'opp_board_game_publish',
+    category: 'opportunity',
+    durationType: 'monthly',
+    weight: 11,
+    title: 'Board Game Publishing',
+    description: 'Co-fund a small-batch board game launch. If retail demand catches on, royalties and unit sales pay big at month close.',
+    financialImpactSummary: 'Invest $1,400 · Potential payout $2,900 - $4,800 (55% chance)',
+    kind: 'venture_opportunity',
+    cashAmount: 1400,
+    secondaryAmount: 3600,
+  },
+  {
+    id: 'opp_medical_conference',
+    category: 'opportunity',
+    durationType: 'monthly',
+    weight: 10,
+    title: 'Industry & Health Conference',
+    description: 'You are invited to speak at a major healthcare and innovation conference. Deliver a presentation to earn a speaker honorarium, factoring in travel expenses.',
+    financialImpactSummary: 'Speaker Honorarium: $2,600 · Travel Expense: $1,200',
+    kind: 'speaking_opportunity',
+    cashAmount: 1200,
+    secondaryAmount: 2600,
   },
 
   // EXPENSES AND EMERGENCIES
@@ -281,3 +315,137 @@ export const EVENT_POOL: EventTemplate[] = [
     kind: 'divorce',
   },
 ];
+
+export interface CharacterSignatureOpportunityConfig {
+  templateId: string;
+  titleEn: string;
+  titleBn: string;
+  descEn: string;
+  descBn: string;
+  baseCost: number;
+  minReturnPct: number;
+  maxReturnPct: number;
+  winChance: number;
+}
+
+export const CHARACTER_SIGNATURE_OPPORTUNITIES: Record<
+  string,
+  CharacterSignatureOpportunityConfig
+> = {
+  teacher: {
+    templateId: 'char_opp_teacher',
+    titleEn: 'Coaching & Study Guide Batch',
+    titleBn: 'কোচিং ও গাইড নোট',
+    descEn: 'Print a curated study guide batch and run a focused exam-prep workshop for steady monthly returns.',
+    descBn: 'ছাত্রদের জন্য বিশেষ গাইড নোট প্রকাশ ও স্বল্পমেয়াদী কোচিং ব্যাচ পরিচালনা করে প্রায় নিশ্চিত মাসিক মুনাফা পান।',
+    baseCost: 300,
+    minReturnPct: 22,
+    maxReturnPct: 44,
+    winChance: 0.92,
+  },
+  doctor: {
+    templateId: 'char_opp_doctor',
+    titleEn: 'Weekend Private Health Camp',
+    titleBn: 'বিশেষ স্বাস্থ্য ক্যাম্প',
+    descEn: 'Sponsor a weekend private screening clinic with partner labs for reliable recurring patient fees.',
+    descBn: 'সাপ্তাহিক ছুটির দিনে পার্টনার ল্যাবের সাথে প্রাইভেট স্বাস্থ্য পরীক্ষা ক্যাম্প আয়োজন করে প্রায় নিশ্চিত মুনাফা অর্জন করুন।',
+    baseCost: 700,
+    minReturnPct: 22,
+    maxReturnPct: 44,
+    winChance: 0.92,
+  },
+  engineer: {
+    templateId: 'char_opp_engineer',
+    titleEn: 'Technical Inspection Contract',
+    titleBn: 'কারিগরি পরিদর্শন চুক্তি',
+    descEn: 'Supply calibration kits and sign off on a short-term industrial site inspection.',
+    descBn: 'স্থানীয় প্রকল্পে স্বল্পমেয়াদী কারিগরি মান যাচাই ও যন্ত্রাংশ ক্যালিব্রেশন চুক্তি থেকে প্রায় নিশ্চিত মুনাফা নিন।',
+    baseCost: 480,
+    minReturnPct: 22,
+    maxReturnPct: 44,
+    winChance: 0.92,
+  },
+  government_employee: {
+    templateId: 'char_opp_government_employee',
+    titleEn: 'Co-op Essential Supply Lot',
+    titleBn: 'সমবায় পণ্য সরবরাহ',
+    descEn: 'Participate in a verified cooperative essential-goods supply batch with strong buyer demand.',
+    descBn: 'নিরাপদ সমবায় নেটওয়ার্কের মাধ্যমে নিত্যপ্রয়োজনীয় পণ্য সরবরাহ লটে অল্প বিনিয়োগে প্রায় নিশ্চিত লাভ করুন।',
+    baseCost: 300,
+    minReturnPct: 20,
+    maxReturnPct: 40,
+    winChance: 0.93,
+  },
+  business_owner: {
+    templateId: 'char_opp_business_owner',
+    titleEn: 'Fast Wholesale Trade Flip',
+    titleBn: 'দ্রুত পাইকারি লট বিক্রি',
+    descEn: 'Pick up a fast-moving wholesale retail lot for pre-booked neighborhood buyers.',
+    descBn: 'আগে থেকে চাহিদা থাকা পণ্যের একটি ছোট পাইকারি লট কিনে দ্রুত মুনাফায় বিক্রি করুন।',
+    baseCost: 600,
+    minReturnPct: 24,
+    maxReturnPct: 46,
+    winChance: 0.91,
+  },
+  office_clerk: {
+    templateId: 'char_opp_office_clerk',
+    titleEn: 'Corporate Stationery Order',
+    titleBn: 'অফিস সরবরাহ অর্ডার',
+    descEn: 'Fulfill a recurring monthly office stationery and printing supply lot for local firms.',
+    descBn: 'স্থানীয় অফিসগুলোর মাসিক স্টেশনারি ও প্রিন্টিং সামগ্রী সরবরাহের ছোট চুক্তি থেকে প্রায় নিশ্চিত লাভ পান।',
+    baseCost: 220,
+    minReturnPct: 20,
+    maxReturnPct: 40,
+    winChance: 0.93,
+  },
+  software_developer: {
+    templateId: 'char_opp_software_developer',
+    titleEn: 'Automation & Plugin Sprint',
+    titleBn: 'অটোমেশন স্ক্রিপ্ট চুক্তি',
+    descEn: 'Deploy a lightweight workflow plugin and automation setup for small business clients.',
+    descBn: 'ছোট ব্যবসায়ের জন্য অটোমেশন স্ক্রিপ্ট ও প্লাগইন সেটআপ করে অল্প পুঁজিতে প্রায় নিশ্চিত মুনাফা পান।',
+    baseCost: 520,
+    minReturnPct: 24,
+    maxReturnPct: 46,
+    winChance: 0.91,
+  },
+  lawyer: {
+    templateId: 'char_opp_lawyer',
+    titleEn: 'Contract & Title Review',
+    titleBn: 'চুক্তিপত্র ও দলিল যাচাই',
+    descEn: 'Handle a fast-turnaround commercial contract and land-title review package.',
+    descBn: 'কর্পোরেট ক্লায়েন্টের জরুরি চুক্তিপত্র ও দলিল যাচাইয়ের কাজ নিয়ে প্রায় নিশ্চিত মাসিক আয় করুন।',
+    baseCost: 650,
+    minReturnPct: 22,
+    maxReturnPct: 44,
+    winChance: 0.92,
+  },
+  banker: {
+    templateId: 'char_opp_banker',
+    titleEn: 'Short-Term Trade Invoice',
+    titleBn: 'স্বল্পমেয়াদী ইনভয়েস ট্রেড',
+    descEn: 'Fund a short-dated verified commercial trade invoice factoring slot for reliable settlement yield.',
+    descBn: 'যাচাইকৃত স্বল্পমেয়াদী বাণিজ্যিক ইনভয়েস ট্রেডে অল্প বিনিয়োগ করে প্রায় নিশ্চিত মুনাফা পান।',
+    baseCost: 580,
+    minReturnPct: 22,
+    maxReturnPct: 44,
+    winChance: 0.92,
+  },
+  freelancer: {
+    templateId: 'char_opp_freelancer',
+    titleEn: 'Express Brand Design Pack',
+    titleBn: 'এক্সপ্রেস ডিজাইন প্যাকেজ',
+    descEn: 'Deliver a rapid brand kit and social campaign asset bundle for repeat startup clients.',
+    descBn: 'স্টার্টআপ ক্লায়েন্টদের জন্য দ্রুত ব্র্যান্ড ও সোশ্যাল ডিজাইন প্যাকেজ তৈরি করে প্রায় নিশ্চিত লাভ পান।',
+    baseCost: 340,
+    minReturnPct: 22,
+    maxReturnPct: 45,
+    winChance: 0.92,
+  },
+};
+
+export function getCharacterSignatureConfig(
+  professionId: string
+): CharacterSignatureOpportunityConfig {
+  return CHARACTER_SIGNATURE_OPPORTUNITIES[professionId] ?? CHARACTER_SIGNATURE_OPPORTUNITIES.teacher;
+}

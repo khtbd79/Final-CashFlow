@@ -1,5 +1,6 @@
-import { EVENT_POOL, EventTemplate } from '../data/events';
+import { EVENT_POOL, EventTemplate, getCharacterSignatureConfig } from '../data/events';
 import { STOCK_CATALOG } from '../data/markets';
+import { getProfessionById } from '../data/professions';
 import { EventChoice, GameEventCard, MaritalStatus, MarketState } from '../types/game';
 import {
   formatCurrency,
@@ -12,12 +13,14 @@ import {
 } from './prng';
 
 export interface TurnEventContext {
+  professionId?: string;
   cash: number;
   passiveIncome: number;
   totalExpenses: number;
   netWorth: number;
   assetsCount: number;
   propertiesCount: number;
+  activeAnnualTemplateIds?: string[];
 }
 
 function isTemplateEligible(
@@ -27,11 +30,7 @@ function isTemplateEligible(
   ctx?: TurnEventContext
 ): boolean {
   if (turn <= 1) {
-    return (
-      t.category === 'opportunity' &&
-      t.kind !== 'property_deal' &&
-      t.kind !== 'business_deal'
-    );
+    return t.category === 'opportunity';
   }
 
   const hasSolvency = ctx
@@ -67,22 +66,7 @@ function isTemplateEligible(
   return true;
 }
 
-function pickWeightedTemplate(
-  excludeIds: Set<string>,
-  turn: number,
-  maritalStatus: MaritalStatus = 'single',
-  ctx?: TurnEventContext
-): EventTemplate {
-  const baseEligible = EVENT_POOL.filter((t) =>
-    isTemplateEligible(t, turn, maritalStatus, ctx)
-  );
-  const candidates = baseEligible.filter((t) => !excludeIds.has(t.id));
-  const pool =
-    candidates.length > 0
-      ? candidates
-      : baseEligible.length > 0
-      ? baseEligible
-      : EVENT_POOL.filter((t) => t.kind === 'stock_discount' || t.kind === 'side_hustle');
+function pickWeightedFromPool(pool: EventTemplate[]): EventTemplate {
   const totalWeight = pool.reduce((sum, t) => sum + t.weight, 0);
   let roll = randomFloat() * totalWeight;
   for (const item of pool) {
@@ -90,6 +74,85 @@ function pickWeightedTemplate(
     if (roll <= 0) return item;
   }
   return pool[0];
+}
+
+function pickWeightedTemplate(
+  excludeIds: Set<string>,
+  turn: number,
+  maritalStatus: MaritalStatus = 'single',
+  ctx?: TurnEventContext,
+  durationFilter?: 'monthly' | 'annual'
+): EventTemplate | null {
+  const baseEligible = EVENT_POOL.filter((t) => {
+    if (!isTemplateEligible(t, turn, maritalStatus, ctx)) return false;
+    if (!durationFilter) return true;
+    const tplDuration = t.durationType ?? 'monthly';
+    return tplDuration === durationFilter;
+  });
+  const candidates = baseEligible.filter((t) => !excludeIds.has(t.id));
+  const pool = candidates.length > 0 ? candidates : baseEligible;
+  if (pool.length === 0) return null;
+  return pickWeightedFromPool(pool);
+}
+
+export function buildCharacterSignatureOpportunityCard(
+  professionId: string,
+  turn: number,
+  cash: number,
+  netWorth: number,
+  inflationMultiplier = 1
+): GameEventCard {
+  const cfg = getCharacterSignatureConfig(professionId);
+  const prof = getProfessionById(professionId);
+  const startCash = Math.max(4000, prof.initialCash);
+  const moneyReference = Math.max(
+    startCash,
+    cash,
+    Math.round(cash * 0.72 + Math.max(0, netWorth) * 0.28)
+  );
+  const growthRatio = moneyReference / startCash;
+  const investCost = Math.max(
+    100,
+    Math.round((cfg.baseCost * Math.pow(growthRatio, 0.92) * inflationMultiplier) / 50) * 50
+  );
+  const minPayout = Math.round((investCost * (1 + cfg.minReturnPct / 100)) / 10) * 10;
+  const maxPayout = Math.round((investCost * (1 + cfg.maxReturnPct / 100)) / 10) * 10;
+  const minProfit = minPayout - investCost;
+  const maxProfit = maxPayout - investCost;
+
+  return {
+    id: uid(`evt_t${turn}_${cfg.templateId}`),
+    templateId: cfg.templateId,
+    turnGenerated: turn,
+    category: 'opportunity',
+    durationType: 'monthly',
+    remainingMonths: 1,
+    expiresAtTurn: turn,
+    isCharacterSignature: true,
+    title: cfg.titleEn,
+    description: `${cfg.descEn} (Invest ${formatCurrency(investCost)} · Expected net profit +${formatCurrency(minProfit)} to +${formatCurrency(maxProfit)}).`,
+    financialImpactSummary: `Invest ${formatCurrency(investCost)} · Expected Return ${formatCurrency(minPayout)} - ${formatCurrency(maxPayout)}`,
+    choices: [
+      {
+        id: 'fund_signature',
+        label: `Invest ${formatCurrency(investCost)}`,
+        description: `Expected return ${formatCurrency(minPayout)}–${formatCurrency(maxPayout)} in Turn Summary.`,
+        effectType: 'venture_opportunity',
+        amount: investCost,
+        secondaryAmount: maxPayout,
+        requiresCashCheck: true,
+        tone: 'positive',
+      },
+      {
+        id: 'decline',
+        label: 'Pass',
+        description: 'Skip this month and check again next month.',
+        effectType: 'dismiss',
+        tone: 'neutral',
+      },
+    ],
+    resolved: false,
+  };
 }
 
 function buildEventCardFromTemplate(
@@ -275,6 +338,56 @@ function buildEventCardFromTemplate(
       break;
     }
 
+    case 'venture_opportunity': {
+      const investCost = Math.max(600, Math.round((randomInt(10, 24) * 100 * inflationMultiplier) / 100) * 100);
+      const maxPayout = Math.round((investCost * randomRange(2.2, 3.2)) / 100) * 100;
+      description = `Co-fund a small-batch board game release for ${formatCurrency(investCost)}. If retail sales take off, payouts reach up to ${formatCurrency(maxPayout)} at summary!`;
+      impact = `Invest ${formatCurrency(investCost)} · Up to +${formatCurrency(maxPayout)} payout`;
+      choices.push({
+        id: 'fund_venture',
+        label: `Invest ${formatCurrency(investCost)}`,
+        description: 'Pay upfront production cost — outcome revealed in Turn Summary.',
+        effectType: 'venture_opportunity',
+        amount: investCost,
+        secondaryAmount: maxPayout,
+        requiresCashCheck: true,
+        tone: 'gold',
+      });
+      choices.push({
+        id: 'decline',
+        label: 'Pass',
+        description: 'Decline this publishing venture.',
+        effectType: 'dismiss',
+        tone: 'neutral',
+      });
+      break;
+    }
+
+    case 'speaking_opportunity': {
+      const travelCost = Math.max(500, Math.round((randomInt(9, 16) * 100 * inflationMultiplier) / 100) * 100);
+      const honorarium = Math.round((travelCost + randomInt(9, 17) * 100 * inflationMultiplier) / 100) * 100;
+      description = `You are invited to speak at a major healthcare and innovation conference. Deliver a presentation to earn ${formatCurrency(honorarium)}, while covering ${formatCurrency(travelCost)} in travel expenses.`;
+      impact = `Honorarium: ${formatCurrency(honorarium)} · Travel Expense: ${formatCurrency(travelCost)}`;
+      choices.push({
+        id: 'accept_conference',
+        label: `Attend (${formatCurrency(travelCost)} travel → ${formatCurrency(honorarium)} fee)`,
+        description: 'Cover travel expenses now and collect honorarium in Turn Summary.',
+        effectType: 'speaking_opportunity',
+        amount: travelCost,
+        secondaryAmount: honorarium,
+        requiresCashCheck: true,
+        tone: 'positive',
+      });
+      choices.push({
+        id: 'decline',
+        label: 'Decline',
+        description: 'Skip the speaking invitation this month.',
+        effectType: 'dismiss',
+        tone: 'neutral',
+      });
+      break;
+    }
+
     case 'medical_bill':
     case 'car_repair':
     case 'home_repair':
@@ -417,11 +530,17 @@ function buildEventCardFromTemplate(
     }
   }
 
+  const durationType: 'monthly' | 'annual' = tpl.durationType ?? 'monthly';
+  const remainingMonths = durationType === 'annual' ? 12 : 1;
+
   return {
     id,
     templateId: tpl.id,
     turnGenerated: turn,
     category: tpl.category,
+    durationType,
+    remainingMonths,
+    expiresAtTurn: durationType === 'annual' ? turn + 11 : turn,
     title,
     description,
     financialImpactSummary: impact,
@@ -439,24 +558,40 @@ export function generateTurnEvents(
   inflationMultiplier = 1,
   ctx?: TurnEventContext
 ): GameEventCard[] {
-  const exclude = new Set(recentTemplateIds.slice(-4));
-
-  let count = 2;
-  if (turn <= 1) {
-    count = 3;
-  } else if (turn === 2) {
-    count = 2;
-  } else {
-    const roll = randomFloat();
-    count = roll < 0.5 ? 2 : 3;
-  }
-
+  const activeAnnualIds = new Set(ctx?.activeAnnualTemplateIds ?? []);
+  const exclude = new Set([...recentTemplateIds.slice(-4), ...activeAnnualIds]);
   const events: GameEventCard[] = [];
 
-  for (let i = 0; i < count; i++) {
-    const tpl = pickWeightedTemplate(exclude, turn, maritalStatus, ctx);
-    exclude.add(tpl.id);
-    events.push(buildEventCardFromTemplate(tpl, turn, market, inflationMultiplier));
+  // 1. Always generate the character's guaranteed monthly signature opportunity (scales with money)
+  events.push(
+    buildCharacterSignatureOpportunityCard(
+      ctx?.professionId ?? 'teacher',
+      turn,
+      ctx?.cash ?? 10000,
+      ctx?.netWorth ?? 10000,
+      inflationMultiplier
+    )
+  );
+
+  // 2. Keep up to 2 long-term (12-month) Annual Opportunities available so players can save & buy when ready
+  if (activeAnnualIds.size < 2) {
+    const shouldSpawnAnnual = turn <= 1 || activeAnnualIds.size === 0 || randomFloat() < 0.65;
+    if (shouldSpawnAnnual) {
+      const annualTpl = pickWeightedTemplate(exclude, turn, maritalStatus, ctx, 'annual');
+      if (annualTpl && !activeAnnualIds.has(annualTpl.id)) {
+        exclude.add(annualTpl.id);
+        events.push(buildEventCardFromTemplate(annualTpl, turn, market, inflationMultiplier));
+      }
+    }
+  }
+
+  // 3. Add 1-2 monthly (1-month) opportunities / emergencies / life events that rotate every month
+  const monthlyCount = turn <= 1 ? 2 : randomFloat() < 0.55 ? 2 : 1;
+  for (let i = 0; i < monthlyCount; i++) {
+    const monthlyTpl = pickWeightedTemplate(exclude, turn, maritalStatus, ctx, 'monthly');
+    if (!monthlyTpl) continue;
+    exclude.add(monthlyTpl.id);
+    events.push(buildEventCardFromTemplate(monthlyTpl, turn, market, inflationMultiplier));
   }
 
   return events;

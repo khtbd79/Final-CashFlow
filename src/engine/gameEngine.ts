@@ -5,6 +5,7 @@ import {
   getEducationCourseTitle,
   getEffectiveEducationCost,
   getEffectiveHappinessCost,
+  getEffectiveInsurancePlanPremium,
   getEffectivePersonalAssetInsurance,
   getEffectivePersonalAssetPrice,
   getHappinessItemName,
@@ -35,7 +36,15 @@ import {
   localizeProperty,
   localizeStock,
 } from '../data/localization';
-import { BUSINESS_TEMPLATES, CRYPTO_CATALOG, FIXED_INCOME_PRODUCTS, STOCK_CATALOG } from '../data/markets';
+import { getCharacterSignatureConfig } from '../data/events';
+import {
+  BUSINESS_TEMPLATES,
+  CRYPTO_CATALOG,
+  findRealEstateTierIndex,
+  FIXED_INCOME_PRODUCTS,
+  REAL_ESTATE_TIER_LISTINGS,
+  STOCK_CATALOG,
+} from '../data/markets';
 import { getProfessionById } from '../data/professions';
 import {
   BusinessListing,
@@ -51,8 +60,10 @@ import {
   OwnedFixedIncome,
   OwnedProperty,
   PendingOpportunityDeal,
+  PendingVentureDeal,
   PersonalAssetId,
   PropertyListing,
+  RealEstateTierId,
   TransactionCategory,
   TransactionRecord,
   TurnActionItem,
@@ -136,6 +147,9 @@ const AUTOMATED_SETTLEMENT_PREFIXES = [
   'Divorce Legal Settlement',
   'Uninsured Accident (',
   'Opportunity Settled: ',
+  'Venture Settled: ',
+  'Lottery Jackpot: ',
+  'Lottery Win: ',
 ];
 
 function isAutomatedTurnSettlementTx(description: string): boolean {
@@ -234,6 +248,9 @@ export function createNewGame(professionId: string): GameState {
     market,
     pendingEvents: [],
     pendingOpportunityDeals: [],
+    pendingVentureDeals: [],
+    pendingLotteryTickets: [],
+    turnActivityCards: [],
     eventHistory: [],
     transactions: [],
     monthlyHistory: [],
@@ -254,6 +271,7 @@ export function createNewGame(professionId: string): GameState {
     completedEducationIds: [],
     educationBoostsById: {},
     lastEducationYear: 0,
+    acquiredRealEstateTiers: [],
     inflationRate: 0,
     inflationMultiplier: 1,
     maritalStatus: initialMaritalStatus,
@@ -289,13 +307,25 @@ export function createNewGame(professionId: string): GameState {
     prof.initialCash
   );
 
+  const initialSummary = computeFinancialSummary(baseState);
+
   baseState.pendingEvents = generateTurnEvents(
     1,
     seed,
     market,
     [],
     initialMaritalStatus,
-    1
+    1,
+    {
+      professionId: prof.id,
+      cash: prof.initialCash,
+      passiveIncome: initialSummary.passiveIncome,
+      totalExpenses: initialSummary.totalExpenses,
+      netWorth: initialSummary.netWorth,
+      assetsCount: 0,
+      propertiesCount: 0,
+      activeAnnualTemplateIds: [],
+    }
   );
 
   const summary = computeFinancialSummary(baseState);
@@ -773,7 +803,7 @@ export function advanceMonth(
     );
   }
 
-  // 9b. Settle Opportunity Deals bought during the month (only reveal outcome at month close)
+  // 9b. Settle Opportunity Deals, Ventures & Lottery Tickets bought during the month
   const pendingOpps = state.pendingOpportunityDeals ?? [];
   const settledEventIds = new Set<string>();
   const settledOpportunityCards: TurnEventSummaryCard[] = [];
@@ -809,16 +839,179 @@ export function advanceMonth(
 
     settledOpportunityCards.push({
       id: `opp_settle_${deal.id}`,
-      kind: 'resolved_event',
-      titleEn: deal.titleEn,
-      titleBn: deal.titleBn,
-      descriptionEn: `Settled ${deal.shares} ${deal.symbol} private placement at month close (Invested: ${formatCurrency(deal.cost)}).`,
-      descriptionBn: `মাস শেষে ${deal.shares}টি ${bnSym} শেয়ারের সুযোগ নিষ্পত্তি হয়েছে (বিনিয়োগ: ${formatCurrency(deal.cost)})।`,
-      resultLabelEn: `Payout: ${formatCurrency(payout)} (${sign}${formatCurrency(profit)} · ${pctSign}${pct}%)`,
-      resultLabelBn: `পরিশোধ: ${formatCurrency(payout)} (${sign}${formatCurrency(profit)} · ${pctSign}${pct}%)`,
+      kind: profit >= 0 ? 'venture_win' : 'venture_loss',
+      templateId: deal.templateId,
+      titleEn: profit >= 0 ? deal.titleEn : `${deal.titleEn} did not meet expectations`,
+      titleBn:
+        profit >= 0
+          ? `আপনি ${deal.shares}টি ${bnSym} শেয়ার সুযোগ থেকে আয় করেছেন।`
+          : `${deal.titleBn} আশানুরূপ লাভজনক ছিল না`,
+      descriptionEn:
+        profit >= 0
+          ? `Settled ${deal.shares} ${deal.symbol} shares (${sign}${formatCurrency(profit)} · ${pctSign}${pct}%).`
+          : `Invested ${formatCurrency(deal.cost)}, settled at ${formatCurrency(payout)} (${pctSign}${pct}%).`,
+      descriptionBn:
+        profit >= 0
+          ? `মোট পরিশোধ (নিট ${sign}${formatCurrency(profit)} · ${pctSign}${pct}%)`
+          : `বিনিয়োগ ${formatCurrency(deal.cost)} · নিষ্পত্তি ${formatCurrency(payout)} (${pctSign}${pct}%)`,
+      amountDisplay: profit >= 0 ? payout : -Math.abs(profit),
       highlightPct: pct,
-      tone: profit > 0 ? 'positive' : profit < 0 ? 'negative' : 'neutral',
+      tone: profit >= 0 ? 'positive' : 'negative',
     });
+  }
+
+  const pendingVentures = state.pendingVentureDeals ?? [];
+  for (const venture of pendingVentures) {
+    settledEventIds.add(venture.eventId);
+    const succeeded = venture.winChance >= 1 || randomFloat() < venture.winChance;
+    if (succeeded) {
+      const payout =
+        venture.payoutMin >= venture.payoutMax
+          ? roundMoney(venture.payoutMin)
+          : Math.round(randomRange(venture.payoutMin, venture.payoutMax) / 10) * 10;
+      const netProfit = roundMoney(payout - venture.cost);
+      runningCash = roundMoney(runningCash + payout);
+      realizedGainFromOpps = roundMoney(realizedGainFromOpps + netProfit);
+
+      txs = appendTx(
+        txs,
+        nextTurn,
+        nextYear,
+        nextMonth,
+        'Event',
+        `Venture Settled: ${venture.titleEn} (+${formatCurrency(payout)})`,
+        payout,
+        runningCash
+      );
+      notes.push(`Opportunity Settled (${venture.titleEn}): Earned ${formatCurrency(payout)}.`);
+
+      settledOpportunityCards.push({
+        id: `ven_settle_${venture.id}`,
+        kind: 'venture_win',
+        templateId: venture.templateId,
+        titleEn: '',
+        titleBn: '',
+        descriptionEn: venture.successDescEn,
+        descriptionBn: venture.successDescBn,
+        amountDisplay: payout,
+        tone: 'positive',
+      });
+    } else if (venture.safeReturnOnMiss) {
+      const refund = roundMoney(venture.cost);
+      runningCash = roundMoney(runningCash + refund);
+      txs = appendTx(
+        txs,
+        nextTurn,
+        nextYear,
+        nextMonth,
+        'Event',
+        `Venture Settled: ${venture.titleEn} (+${formatCurrency(refund)})`,
+        refund,
+        runningCash
+      );
+      notes.push(`${venture.titleEn}: Principal returned safely (${formatCurrency(refund)}).`);
+
+      settledOpportunityCards.push({
+        id: `ven_settle_${venture.id}`,
+        kind: 'venture_win',
+        templateId: venture.templateId,
+        titleEn: '',
+        titleBn: '',
+        descriptionEn: `${venture.titleEn}: Principal returned safely (no extra profit this month).`,
+        descriptionBn: `${venture.titleBn}: বিনিয়োগের আসল নিরাপদে ফেরত এসেছে (এ মাসে বাড়তি লাভ হয়নি)।`,
+        amountDisplay: refund,
+        tone: 'neutral',
+      });
+    } else {
+      realizedGainFromOpps = roundMoney(realizedGainFromOpps - venture.cost);
+      notes.push(`${venture.titleEn} was unsuccessful (-${formatCurrency(venture.cost)}).`);
+
+      settledOpportunityCards.push({
+        id: `ven_settle_${venture.id}`,
+        kind: 'venture_loss',
+        templateId: venture.templateId,
+        titleEn: venture.failDescEn,
+        titleBn: venture.failDescBn,
+        descriptionEn: '',
+        descriptionBn: '',
+        tone: 'negative',
+      });
+    }
+  }
+
+  const pendingLotteries = state.pendingLotteryTickets ?? [];
+  let lotteryHappinessDelta = 0;
+  for (let idx = 0; idx < pendingLotteries.length; idx++) {
+    const ticketId = pendingLotteries[idx];
+    const ticket = getLotteryTicketById(ticketId);
+    const roll = randomFloat();
+    let grossPrize = 0;
+    let hapGain = 0;
+    let tier: 'jackpot' | 'big' | 'small' | 'none' = 'none';
+
+    if (roll < ticket.jackpotChance) {
+      tier = 'jackpot';
+      grossPrize = Math.round(randomRange(ticket.jackpotMin, ticket.jackpotMax) / 100) * 100;
+      hapGain = ticket.jackpotHappinessBonus;
+    } else if (roll < ticket.jackpotChance + ticket.bigWinChance) {
+      tier = 'big';
+      grossPrize = Math.round(randomRange(ticket.bigWinMin, ticket.bigWinMax) / 50) * 50;
+      hapGain = 6;
+    } else if (roll < ticket.jackpotChance + ticket.bigWinChance + ticket.smallWinChance) {
+      tier = 'small';
+      grossPrize = Math.round(randomRange(ticket.smallWinMin, ticket.smallWinMax) / 5) * 5;
+      hapGain = 2;
+    }
+
+    if (grossPrize > 0) {
+      runningCash = roundMoney(runningCash + grossPrize);
+      lotteryHappinessDelta += hapGain;
+      const txDesc =
+        tier === 'jackpot'
+          ? `Lottery Jackpot: ${ticket.nameEn}`
+          : `Lottery Win: ${ticket.nameEn}`;
+      txs = appendTx(
+        txs,
+        nextTurn,
+        nextYear,
+        nextMonth,
+        'Event',
+        txDesc,
+        grossPrize,
+        runningCash
+      );
+      notes.push(`Lottery (${ticket.nameEn}): Won +${formatCurrency(grossPrize)}!`);
+
+      settledOpportunityCards.push({
+        id: `lot_settle_${nextTurn}_${ticketId}_${idx}`,
+        kind: 'lottery_win',
+        templateId: 'lottery',
+        titleEn: '',
+        titleBn: '',
+        descriptionEn:
+          tier === 'jackpot'
+            ? `JACKPOT! You won the grand prize from ${ticket.nameEn}!`
+            : `Congratulations! You won a prize from ${ticket.nameEn}.`,
+        descriptionBn:
+          tier === 'jackpot'
+            ? `মহাভাগ্য জ্যাকপট! আপনি ${ticket.nameBn} থেকে জ্যাকপট পুরস্কার পেয়েছেন।`
+            : `অভিনন্দন! আপনি ${ticket.nameBn} থেকে পুরস্কার পেয়েছেন।`,
+        amountDisplay: grossPrize,
+        tone: 'positive',
+      });
+    } else {
+      notes.push(`Lottery (${ticket.nameEn}): No prize this draw.`);
+      settledOpportunityCards.push({
+        id: `lot_settle_${nextTurn}_${ticketId}_${idx}`,
+        kind: 'lottery_loss',
+        templateId: 'lottery',
+        titleEn: `${ticket.nameEn} was unsuccessful`,
+        titleBn: `${ticket.nameBn} অসফল ছিল`,
+        descriptionEn: '',
+        descriptionBn: '',
+        tone: 'negative',
+      });
+    }
   }
 
   const updatedProperties = state.properties.map((p) => {
@@ -1035,13 +1228,27 @@ export function advanceMonth(
     }
   }
 
-  // 11. Move unchosen opportunity cards to history as expired/ignored, generate new events unless ignored
-  const expiredOpportunities: GameEventCard[] = state.pendingEvents
-    .filter((e) => !e.resolved)
+  // 11. Keep unresolved 12-month Annual opportunities across months; expire Monthly (or finished Annual) ones
+  const unresolvedPending = state.pendingEvents.filter((e) => !e.resolved);
+  const carriedAnnualEvents: GameEventCard[] = ignoreEvents
+    ? []
+    : unresolvedPending
+        .filter((e) => e.durationType === 'annual' && (e.remainingMonths ?? 12) > 1)
+        .map((e) => ({
+          ...e,
+          remainingMonths: (e.remainingMonths ?? 12) - 1,
+        }));
+  const carriedAnnualIds = new Set(carriedAnnualEvents.map((e) => e.id));
+  const expiredOpportunities: GameEventCard[] = unresolvedPending
+    .filter((e) => !carriedAnnualIds.has(e.id))
     .map((e) => ({
       ...e,
       resolved: true,
-      resolutionNote: ignoreEvents ? 'Ignored (Events disabled).' : 'Opportunity expired at end of month.',
+      resolutionNote: ignoreEvents
+        ? 'Ignored (Events disabled).'
+        : e.durationType === 'annual'
+          ? 'Annual opportunity expired after 12 months.'
+          : 'Opportunity expired at end of month.',
     }));
 
   const recentIds = [...state.eventHistory, ...expiredOpportunities].map((e) => e.templateId);
@@ -1065,6 +1272,7 @@ export function advanceMonth(
         nextMaritalStatus,
         nextInflationMultiplier,
         {
+          professionId: state.professionId,
           cash: runningCash,
           passiveIncome: eventSummary.passiveIncome,
           totalExpenses: eventSummary.totalExpenses,
@@ -1077,6 +1285,7 @@ export function advanceMonth(
             updatedBusinesses.length +
             (state.personalAssets ?? []).length,
           propertiesCount: updatedProperties.length,
+          activeAnnualTemplateIds: carriedAnnualEvents.map((e) => e.templateId),
         }
       );
 
@@ -1090,7 +1299,8 @@ export function advanceMonth(
     -3 -
     activeOpsPenalty -
     (triggeredOverdraft ? 5 : 0) +
-    familyHappinessDelta -
+    familyHappinessDelta +
+    lotteryHappinessDelta -
     (yearlyMissingAssetsHappinessLoss ?? 0) -
     (uninsuredAccidentHappinessLoss ?? 0);
   const nextHappiness = Math.max(0, (state.happiness ?? 70) + happinessDelta);
@@ -1141,8 +1351,11 @@ export function advanceMonth(
     properties: updatedProperties,
     businesses: updatedBusinesses,
     market: nextMarket,
-    pendingEvents: newEvents,
+    pendingEvents: [...newEvents, ...carriedAnnualEvents],
     pendingOpportunityDeals: [],
+    pendingVentureDeals: [],
+    pendingLotteryTickets: [],
+    turnActivityCards: [],
     eventHistory: [...expiredOpportunities, ...state.eventHistory].slice(0, 100),
     transactions: txs,
     realizedInvestmentPnL: roundMoney((state.realizedInvestmentPnL ?? 0) + realizedGainFromOpps),
@@ -1377,8 +1590,9 @@ export function advanceMonth(
     }
   }
 
-  // Compute Desires / Happiness impacts for the turn
+  // Compute Desires (আকাঙ্ক্ষা) & Subscriptions (সাবস্ক্রিপশন) impacts for the turn
   const desireImpacts: TurnDesireImpactItem[] = [];
+  const subscriptionImpacts: TurnDesireImpactItem[] = [];
   const ownedPersonalAssets = state.personalAssets ?? [];
 
   for (const asset of ownedPersonalAssets) {
@@ -1418,7 +1632,7 @@ export function advanceMonth(
   for (const hid of state.purchasedHappinessIdsThisTurn ?? []) {
     const item = happinessPool.find((h) => h.id === hid);
     if (item && item.happinessGain !== 0) {
-      desireImpacts.push({
+      subscriptionImpacts.push({
         id: `hap_${hid}`,
         labelEn: item.nameEn,
         labelBn: item.nameBn,
@@ -1524,7 +1738,10 @@ export function advanceMonth(
   }
 
   // Build Event Summary Cards for the turn
-  const eventSummaryCards: TurnEventSummaryCard[] = [...settledOpportunityCards];
+  const eventSummaryCards: TurnEventSummaryCard[] = [
+    ...(state.turnActivityCards ?? []),
+    ...settledOpportunityCards,
+  ];
 
   const resolvedThisTurn = state.eventHistory.filter(
     (evt) =>
@@ -1554,32 +1771,33 @@ export function advanceMonth(
       (chosenChoice.amount ?? 0) < 0 &&
       (isMedicalInsured || isCarInsured || isHomeInsured);
 
+    const rawCashDelta = chosenChoice?.amount ?? 0;
     const paidAmt = insuredCovered
-      ? roundMoney(Math.abs(chosenChoice?.amount ?? 0) * 0.15)
-      : Math.abs(chosenChoice?.amount ?? 0);
+      ? roundMoney(Math.abs(rawCashDelta) * 0.15)
+      : Math.abs(rawCashDelta);
+    const isPositiveCash = chosenChoice?.effectType === 'cash_delta' && rawCashDelta > 0;
+    const isNegativeCash = chosenChoice?.effectType === 'cash_delta' && rawCashDelta < 0;
 
     eventSummaryCards.push({
       id: evt.id,
       kind: 'resolved_event',
-      titleEn: enCard.title,
-      titleBn: bnCard.title,
+      templateId: evt.templateId,
+      titleEn: isPositiveCash ? '' : enCard.title,
+      titleBn: isPositiveCash ? '' : bnCard.title,
       descriptionEn: enCard.description,
       descriptionBn: bnCard.description,
+      amountDisplay: isPositiveCash ? paidAmt : isNegativeCash ? -paidAmt : undefined,
       resultLabelEn: insuredCovered
         ? `Insurance covered 85% (Paid: ${formatCurrency(paidAmt)})`
-        : chosenChoice?.effectType === 'cash_delta' && (chosenChoice.amount ?? 0) < 0
-          ? `Paid: ${formatCurrency(paidAmt)}`
-          : chosenChoice?.effectType === 'cash_delta' && (chosenChoice.amount ?? 0) > 0
-            ? `Received: +${formatCurrency(paidAmt)}`
-            : evt.resolutionNote ?? bnCard.financialImpactSummary,
+        : isPositiveCash || isNegativeCash
+          ? undefined
+          : evt.resolutionNote ?? bnCard.financialImpactSummary,
       resultLabelBn: insuredCovered
         ? `বীমা ৮৫% কভার করেছে (পরিশোধ: ${formatCurrency(paidAmt)})`
-        : chosenChoice?.effectType === 'cash_delta' && (chosenChoice.amount ?? 0) < 0
-          ? `পরিশোধ: ${formatCurrency(paidAmt)}`
-          : chosenChoice?.effectType === 'cash_delta' && (chosenChoice.amount ?? 0) > 0
-            ? `প্রাপ্ত: +${formatCurrency(paidAmt)}`
-            : bnCard.financialImpactSummary,
-      tone: insuredCovered || (chosenChoice?.amount ?? 0) > 0 ? 'positive' : 'neutral',
+        : isPositiveCash || isNegativeCash
+          ? undefined
+          : bnCard.financialImpactSummary,
+      tone: insuredCovered || isPositiveCash ? 'positive' : isNegativeCash ? 'negative' : 'neutral',
     });
   }
 
@@ -1675,8 +1893,7 @@ export function advanceMonth(
   }
 
   if (annualInflationPct !== undefined) {
-    const hasPrevYear = state.year >= 2;
-    const trendDeltaPct = hasPrevYear ? annualInflationPct - previousInflationRate : undefined;
+    const trendDeltaPct = annualInflationPct - previousInflationRate;
     eventSummaryCards.push({
       id: `inf_${nextTurn}`,
       kind: 'inflation',
@@ -1692,7 +1909,7 @@ export function advanceMonth(
           : 'এ বছর পণ্য ও পরিষেবার মূল্য স্থিতিশীল রয়েছে:',
       highlightPct: annualInflationPct,
       trendDeltaPct,
-      previousPct: hasPrevYear ? previousInflationRate : undefined,
+      previousPct: previousInflationRate,
       resultLabelEn:
         inflationLivingCostDelta > 0
           ? `Monthly expenses up: +${formatCurrency(inflationLivingCostDelta)}/mo`
@@ -1709,6 +1926,10 @@ export function advanceMonth(
     50000,
     Math.round(((summaryAfter.totalExpenses * 150) || 175000) / 1000) * 1000
   );
+  const capitalProgressPct =
+    freedomCapitalGoal > 0
+      ? Math.min(100, Math.max(0, Math.round((summaryAfter.totalAssets / freedomCapitalGoal) * 100)))
+      : 0;
 
   const turnSummary: TurnSummary = {
     turn: nextTurn,
@@ -1746,6 +1967,7 @@ export function advanceMonth(
     passiveIncomeAfter: summaryAfter.passiveIncome,
     passiveIncomeDelta,
     freedomProgressPctAfter,
+    capitalProgressPct,
     freedomProgressDelta,
     happinessAfter: nextHappiness,
     happinessDelta: monthlyHappinessNetDelta,
@@ -1753,6 +1975,7 @@ export function advanceMonth(
     actionsDuringTurn,
     investmentResults,
     desireImpacts,
+    subscriptionImpacts,
     eventSummaryCards,
     eventsGeneratedCount: newEvents.length,
     newVictoryTriggered,
@@ -1761,7 +1984,7 @@ export function advanceMonth(
     blackSwanGoldSurgePct,
     blackSwanGoldProfit,
     annualInflationPct,
-    previousInflationRate: state.year >= 2 ? previousInflationRate : undefined,
+    previousInflationRate,
     inflationRateCurrent: nextInflationRate,
     inflationLivingCostDelta: inflationLivingCostDelta > 0 ? inflationLivingCostDelta : undefined,
     babyBornThisTurn,
@@ -2100,12 +2323,32 @@ export function sellCrypto(
 // ==========================================
 // REAL ESTATE
 // ==========================================
+export function getAcquiredRealEstateTiers(state: GameState): RealEstateTierId[] {
+  const acquired = new Set<RealEstateTierId>(state.acquiredRealEstateTiers ?? []);
+  for (const entry of REAL_ESTATE_TIER_LISTINGS) {
+    if (
+      state.properties.some((p) => p.name === entry.listing.name) ||
+      state.transactions.some(
+        (tx) =>
+          tx.category === 'Real Estate' &&
+          tx.description.includes(`Acquired ${entry.listing.name}`)
+      )
+    ) {
+      acquired.add(entry.tier);
+    }
+  }
+  return Array.from(acquired);
+}
+
 export function buyProperty(
   state: GameState,
   listing: PropertyListing,
   useFinancing: boolean,
   lang: LanguageCode = 'en'
 ): EngineActionResult {
+  const tierIdx = findRealEstateTierIndex(listing);
+  const acquiredTiers = getAcquiredRealEstateTiers(state);
+
   const cashRequired = useFinancing ? listing.downPayment : listing.purchasePrice;
   if (state.cash < cashRequired) {
     return {
@@ -2170,6 +2413,10 @@ export function buyProperty(
   const nextCash = roundMoney(state.cash - cashRequired);
   const remainingListings = state.market.availableProperties.filter((p) => p.id !== listing.id);
   const dispName = localizeProperty(listing.name, listing.location, listing.description, lang).name;
+  const nextAcquiredTiers =
+    tierIdx >= 0
+      ? Array.from(new Set([...acquiredTiers, REAL_ESTATE_TIER_LISTINGS[tierIdx].tier]))
+      : acquiredTiers;
 
   const txs = appendTx(
     state.transactions,
@@ -2187,6 +2434,7 @@ export function buyProperty(
     cash: nextCash,
     properties: [...state.properties, newProp],
     loans: nextLoans,
+    acquiredRealEstateTiers: nextAcquiredTiers,
     actionsUsedThisTurn: Math.min(6, (state.actionsUsedThisTurn ?? 0) + 1),
     market: { ...state.market, availableProperties: remainingListings },
     transactions: txs,
@@ -3140,6 +3388,123 @@ export function resolveEventChoice(
       break;
     }
 
+    case 'venture_opportunity': {
+      const investCost = Math.max(100, roundMoney(choice.amount ?? 1400));
+      const isSignature =
+        choice.id === 'fund_signature' || Boolean(eventCard.isCharacterSignature);
+      const sigCfg = isSignature ? getCharacterSignatureConfig(workingState.professionId) : null;
+      const maxPayout = sigCfg
+        ? Math.round((investCost * (1 + sigCfg.maxReturnPct / 100)) / 10) * 10
+        : Math.max(investCost * 2, roundMoney(choice.secondaryAmount ?? investCost * 2.5));
+      const minPayout = sigCfg
+        ? Math.round((investCost * (1 + sigCfg.minReturnPct / 100)) / 10) * 10
+        : Math.round((investCost * 1.8) / 50) * 50;
+      if (workingState.cash < investCost) {
+        return {
+          state,
+          error:
+            lang === 'bn'
+              ? `পর্যাপ্ত নগদ নেই। প্রয়োজন ${formatCurrency(investCost)}, হাতে আছে ${formatCurrency(workingState.cash)}।`
+              : `Insufficient cash. Need ${formatCurrency(investCost)}, have ${formatCurrency(workingState.cash)}.`,
+        };
+      }
+      const nextCash = roundMoney(workingState.cash - investCost);
+      const enCard = localizeEventCard(eventCard, 'en');
+      const bnCard = localizeEventCard(eventCard, 'bn');
+      const deal: PendingVentureDeal = {
+        id: uid('ven_deal'),
+        eventId: eventCard.id,
+        templateId: eventCard.templateId,
+        kind: 'venture_opportunity',
+        titleEn: enCard.title,
+        titleBn: bnCard.title,
+        successDescEn: sigCfg
+          ? `Your ${enCard.title} generated a reliable monthly profit.`
+          : `Your ${enCard.title.toLowerCase()} succeeded and generated strong returns.`,
+        successDescBn: sigCfg
+          ? `${bnCard.title} সুযোগটি সফল হয়েছে এবং নিয়মিত মুনাফা দিয়েছে।`
+          : `${bnCard.title} সফল হয়েছে এবং আপনি মুনাফা পেয়েছেন।`,
+        failDescEn: `${enCard.title} was unsuccessful`,
+        failDescBn: `${bnCard.title} অসফল ছিল`,
+        cost: investCost,
+        winChance: sigCfg ? sigCfg.winChance : 0.55,
+        payoutMin: minPayout,
+        payoutMax: maxPayout,
+        safeReturnOnMiss: Boolean(sigCfg),
+        turnPurchased: workingState.currentTurn,
+      };
+      workingState.cash = nextCash;
+      workingState.pendingVentureDeals = [...(workingState.pendingVentureDeals ?? []), deal];
+      workingState.transactions = appendTx(
+        workingState.transactions,
+        workingState.currentTurn,
+        workingState.year,
+        workingState.month,
+        'Event',
+        `Opportunity Investment: ${enCard.title}`,
+        -investCost,
+        nextCash
+      );
+      resolutionNote = 'Pending month-end settlement';
+      toastNote =
+        lang === 'bn'
+          ? `${formatCurrency(investCost)} বিনিয়োগ সম্পন্ন — ফলাফল সারসংক্ষেপে দেখা যাবে।`
+          : `Invested ${formatCurrency(investCost)} — outcome will appear in Turn Summary.`;
+      break;
+    }
+
+    case 'speaking_opportunity': {
+      const travelCost = Math.max(100, roundMoney(choice.amount ?? 1200));
+      const honorarium = Math.max(travelCost + 400, roundMoney(choice.secondaryAmount ?? 2600));
+      if (workingState.cash < travelCost) {
+        return {
+          state,
+          error:
+            lang === 'bn'
+              ? `ভ্রমণ খরচের জন্য ${formatCurrency(travelCost)} নগদ প্রয়োজন।`
+              : `Need ${formatCurrency(travelCost)} cash to cover travel expenses.`,
+        };
+      }
+      const nextCash = roundMoney(workingState.cash - travelCost);
+      const enCard = localizeEventCard(eventCard, 'en');
+      const bnCard = localizeEventCard(eventCard, 'bn');
+      const deal: PendingVentureDeal = {
+        id: uid('spk_deal'),
+        eventId: eventCard.id,
+        templateId: eventCard.templateId,
+        kind: 'speaking_opportunity',
+        titleEn: enCard.title,
+        titleBn: bnCard.title,
+        successDescEn: 'You delivered a presentation on a new healthcare approach and received a speaker fee.',
+        successDescBn: 'আপনি একটি নতুন চিকিৎসা পদ্ধতি নিয়ে বক্তৃতা দিয়েছেন এবং পারিশ্রমিক পেয়েছেন।',
+        failDescEn: `${enCard.title} was cancelled`,
+        failDescBn: `${bnCard.title} বাতিল হয়েছে`,
+        cost: travelCost,
+        winChance: 1,
+        payoutMin: honorarium,
+        payoutMax: honorarium,
+        turnPurchased: workingState.currentTurn,
+      };
+      workingState.cash = nextCash;
+      workingState.pendingVentureDeals = [...(workingState.pendingVentureDeals ?? []), deal];
+      workingState.transactions = appendTx(
+        workingState.transactions,
+        workingState.currentTurn,
+        workingState.year,
+        workingState.month,
+        'Event',
+        `Conference Travel Expense: ${enCard.title}`,
+        -travelCost,
+        nextCash
+      );
+      resolutionNote = 'Pending month-end settlement';
+      toastNote =
+        lang === 'bn'
+          ? `ভ্রমণ খরচ ${formatCurrency(travelCost)} পরিশোধিত — পারিশ্রমিক সারসংক্ষেপে যুক্ত হবে।`
+          : `Travel expense paid (${formatCurrency(travelCost)}) — speaker fee settles in Turn Summary.`;
+      break;
+    }
+
     case 'salary_multiplier': {
       const mult = choice.secondaryAmount ?? 1;
       workingState.salary = Math.round(workingState.salary * mult);
@@ -3524,17 +3889,18 @@ export function toggleInsurancePlan(
     };
   }
 
-  if (state.cash < plan.monthlyPremium) {
+  const premium = getEffectiveInsurancePlanPremium(plan, state);
+  if (state.cash < premium) {
     return {
       state,
       error:
         lang === 'bn'
-          ? `প্রথম প্রিমিয়ামের জন্য ${formatCurrency(plan.monthlyPremium)} প্রয়োজন।`
-          : `Need ${formatCurrency(plan.monthlyPremium)} for initial premium.`,
+          ? `প্রথম প্রিমিয়ামের জন্য ${formatCurrency(premium)} প্রয়োজন।`
+          : `Need ${formatCurrency(premium)} for initial premium.`,
     };
   }
 
-  const nextCash = roundMoney(state.cash - plan.monthlyPremium);
+  const nextCash = roundMoney(state.cash - premium);
   const txs = appendTx(
     state.transactions,
     state.currentTurn,
@@ -3542,7 +3908,7 @@ export function toggleInsurancePlan(
     state.month,
     'Lifestyle',
     `Enrolled in ${plan.nameEn} Insurance`,
-    -plan.monthlyPremium,
+    -premium,
     nextCash
   );
 
@@ -3557,8 +3923,8 @@ export function toggleInsurancePlan(
     },
     successMessage:
       lang === 'bn'
-        ? `${planName} বীমা চালু হয়েছে (${formatCurrency(plan.monthlyPremium)}/মাস)`
-        : `${planName} Insurance active (${formatCurrency(plan.monthlyPremium)}/mo)`,
+        ? `${planName} বীমা চালু হয়েছে (${formatCurrency(premium)}/মাস)`
+        : `${planName} Insurance active (${formatCurrency(premium)}/mo)`,
   };
 }
 
@@ -3621,12 +3987,24 @@ export function tryCharacterVenture(
       profit,
       nextCash
     );
+    const winCard: TurnEventSummaryCard = {
+      id: `vent_win_${venture.id}_${state.currentTurn}`,
+      kind: 'venture_win',
+      templateId: venture.templateId,
+      titleEn: '',
+      titleBn: '',
+      descriptionEn: `Your ${venture.titleEn} opportunity succeeded and generated profit!`,
+      descriptionBn: `${venture.titleBn} সুযোগটি সফল হয়েছে এবং মুনাফা দিয়েছে।`,
+      amountDisplay: profit,
+      tone: 'positive',
+    };
     const nextState = checkVictory({
       ...state,
       cash: nextCash,
       happiness: nextHappiness,
       actionsUsedThisTurn: actionsNext,
       activeVentures: nextVentures,
+      turnActivityCards: [...(state.turnActivityCards ?? []), winCard],
       realizedInvestmentPnL: roundMoney(state.realizedInvestmentPnL + profit),
       taxableIncomeYTD: Math.max(0, roundMoney((state.taxableIncomeYTD ?? 0) + profit)),
       transactions: txs,
@@ -3655,12 +4033,23 @@ export function tryCharacterVenture(
     -loss,
     nextCash
   );
+  const lossCard: TurnEventSummaryCard = {
+    id: `vent_loss_${venture.id}_${state.currentTurn}`,
+    kind: 'venture_loss',
+    templateId: venture.templateId,
+    titleEn: `${venture.titleEn} was unsuccessful`,
+    titleBn: `${venture.titleBn} অসফল ছিল`,
+    descriptionEn: '',
+    descriptionBn: '',
+    tone: 'negative',
+  };
   const nextState = checkGameOver({
     ...state,
     cash: nextCash,
     happiness: nextHappiness,
     actionsUsedThisTurn: actionsNext,
     activeVentures: nextVentures,
+    turnActivityCards: [...(state.turnActivityCards ?? []), lossCard],
     realizedInvestmentPnL: roundMoney(state.realizedInvestmentPnL - loss),
     taxableIncomeYTD: Math.max(0, roundMoney((state.taxableIncomeYTD ?? 0) - loss)),
     transactions: txs,
@@ -3826,8 +4215,8 @@ export function playLottery(
       state,
       error:
         lang === 'bn'
-          ? 'এই মাসে এই লটারি ইতিমধ্যেই খেলা হয়েছে।'
-          : 'You already played this lottery ticket this month.',
+          ? 'এই মাসে এই লটারি ইতিমধ্যেই কেনা হয়েছে।'
+          : 'You already bought this lottery ticket this month.',
     };
   }
 
@@ -3844,36 +4233,9 @@ export function playLottery(
     };
   }
 
-  const roll = randomFloat();
-  let grossPrize = 0;
-  let happinessBoost = 0;
-  let tier: 'jackpot' | 'big' | 'small' | 'none' = 'none';
-
-  if (roll < ticket.jackpotChance) {
-    tier = 'jackpot';
-    grossPrize = Math.round(randomRange(ticket.jackpotMin, ticket.jackpotMax) / 100) * 100;
-    happinessBoost = ticket.jackpotHappinessBonus;
-  } else if (roll < ticket.jackpotChance + ticket.bigWinChance) {
-    tier = 'big';
-    grossPrize = Math.round(randomRange(ticket.bigWinMin, ticket.bigWinMax) / 50) * 50;
-    happinessBoost = 6;
-  } else if (roll < ticket.jackpotChance + ticket.bigWinChance + ticket.smallWinChance) {
-    tier = 'small';
-    grossPrize = Math.round(randomRange(ticket.smallWinMin, ticket.smallWinMax) / 5) * 5;
-    happinessBoost = 2;
-  }
-
-  const netDelta = roundMoney(grossPrize - ticket.cost);
-  const nextCash = roundMoney(state.cash + netDelta);
-  const nextHappiness = (state.happiness ?? 70) + happinessBoost;
+  const nextCash = roundMoney(state.cash - ticket.cost);
   const nextPlayed = [...played, ticketId];
-
-  const txDesc =
-    tier === 'jackpot'
-      ? `Lottery Jackpot: ${ticket.nameEn}`
-      : grossPrize > 0
-      ? `Lottery Win: ${ticket.nameEn}`
-      : `Lottery Ticket: ${ticket.nameEn}`;
+  const nextPendingLotteries = [...(state.pendingLotteryTickets ?? []), ticketId];
 
   const txs = appendTx(
     state.transactions,
@@ -3881,51 +4243,23 @@ export function playLottery(
     state.year,
     state.month,
     'Event',
-    txDesc,
-    netDelta,
+    `Lottery Ticket: ${ticket.nameEn}`,
+    -ticket.cost,
     nextCash
   );
 
-  const nextState = checkVictory({
-    ...state,
-    cash: nextCash,
-    happiness: nextHappiness,
-    playedLotteryIdsThisTurn: nextPlayed,
-    transactions: txs,
-  });
-
-  if (tier === 'jackpot') {
-    return {
-      state: nextState,
-      outcomeType: 'win',
-      outcomeDelta: grossPrize,
-      successMessage:
-        lang === 'bn'
-          ? `মহাভাগ্য জ্যাকপট! ${name} থেকে জিতেছেন +${formatCurrency(grossPrize)}!`
-          : `JACKPOT! ${name} won +${formatCurrency(grossPrize)}!`,
-    };
-  }
-
-  if (grossPrize > 0) {
-    return {
-      state: nextState,
-      outcomeType: 'win',
-      outcomeDelta: grossPrize,
-      successMessage:
-        lang === 'bn'
-          ? `অভিনন্দন! ${name} থেকে পুরস্কার জিতেছেন +${formatCurrency(grossPrize)}!`
-          : `Lucky Win! ${name} paid +${formatCurrency(grossPrize)}!`,
-    };
-  }
-
   return {
-    state: nextState,
-    outcomeType: 'loss',
-    outcomeDelta: -ticket.cost,
+    state: {
+      ...state,
+      cash: nextCash,
+      playedLotteryIdsThisTurn: nextPlayed,
+      pendingLotteryTickets: nextPendingLotteries,
+      transactions: txs,
+    },
     successMessage:
       lang === 'bn'
-        ? `${name} — এবার মেলেনি (-${formatCurrency(ticket.cost)})।`
-        : `${name} — No prize this time (-${formatCurrency(ticket.cost)}).`,
+        ? `${name} কেনা হয়েছে — ফলাফল মাস শেষে সারসংক্ষেপে দেখা যাবে।`
+        : `${name} purchased — draw result will appear in Turn Summary.`,
   };
 }
 
@@ -4200,7 +4534,8 @@ export function completeEducationCourse(
   }
 
   const courses = getEducationCoursesForProfession(state.professionId);
-  const course = courses.find((c) => c.id === courseId);
+  const courseIndex = courses.findIndex((c) => c.id === courseId);
+  const course = courseIndex >= 0 ? courses[courseIndex] : undefined;
   if (!course) {
     return {
       state,
@@ -4216,6 +4551,21 @@ export function completeEducationCourse(
         lang === 'bn'
           ? 'এই দক্ষতা কোর্সটি ইতিমধ্যেই সম্পন্ন হয়েছে।'
           : 'You have already completed this course.',
+    };
+  }
+
+  const missingPrereq = courses
+    .slice(0, courseIndex)
+    .find((prev) => !completedIds.includes(prev.id));
+  if (missingPrereq) {
+    const reqTitle = getEducationCourseTitle(missingPrereq, lang);
+    const targetTitle = getEducationCourseTitle(course, lang);
+    return {
+      state,
+      error:
+        lang === 'bn'
+          ? `ক্রমান্বয়ে সম্পন্ন করতে হবে: "${targetTitle}" নেওয়ার আগে "${reqTitle}" সম্পন্ন করুন।`
+          : `Complete in order: finish "${reqTitle}" before taking "${targetTitle}".`,
     };
   }
 

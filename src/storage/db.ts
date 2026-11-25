@@ -1,10 +1,12 @@
 import offlineBatRaw from '../../CASHFLOW-Offline.bat?raw';
+import { EVENT_POOL } from '../data/events';
 import {
   rollMonthlyHappinessItems,
   rollVenturesForProfession,
   withPilgrimageHappinessItems,
 } from '../data/lifestyle';
-import { GameSettings, GameState } from '../types/game';
+import { REAL_ESTATE_TIER_LISTINGS } from '../data/markets';
+import { GameSettings, GameState, RealEstateTierId } from '../types/game';
 
 const DB_NAME = 'cashflow_offline_db';
 const DB_VERSION = 1;
@@ -237,9 +239,35 @@ export function normalizeGameState(state: GameState): GameState {
     ignoredHappinessIdsThisTurn: Array.isArray(state.ignoredHappinessIdsThisTurn)
       ? state.ignoredHappinessIdsThisTurn
       : [],
+    pendingEvents: Array.isArray(state.pendingEvents)
+      ? state.pendingEvents.map((evt) => {
+          const tpl = EVENT_POOL.find((t) => t.id === evt.templateId);
+          const durationType = evt.durationType ?? tpl?.durationType ?? 'monthly';
+          const remainingMonths =
+            typeof evt.remainingMonths === 'number'
+              ? evt.remainingMonths
+              : durationType === 'annual'
+                ? 12
+                : 1;
+          return {
+            ...evt,
+            durationType,
+            remainingMonths,
+            isCharacterSignature:
+              evt.isCharacterSignature ?? evt.templateId.startsWith('char_opp_'),
+          };
+        })
+      : [],
     pendingOpportunityDeals: Array.isArray(state.pendingOpportunityDeals)
       ? state.pendingOpportunityDeals
       : [],
+    pendingVentureDeals: Array.isArray(state.pendingVentureDeals)
+      ? state.pendingVentureDeals
+      : [],
+    pendingLotteryTickets: Array.isArray(state.pendingLotteryTickets)
+      ? state.pendingLotteryTickets
+      : [],
+    turnActivityCards: Array.isArray(state.turnActivityCards) ? state.turnActivityCards : [],
     playedLotteryIdsThisTurn: Array.isArray(state.playedLotteryIdsThisTurn)
       ? state.playedLotteryIdsThisTurn
       : [],
@@ -251,6 +279,26 @@ export function normalizeGameState(state: GameState): GameState {
         ? state.educationBoostsById
         : {},
     lastEducationYear: typeof state.lastEducationYear === 'number' ? state.lastEducationYear : 0,
+    acquiredRealEstateTiers: (() => {
+      const set = new Set<RealEstateTierId>(
+        Array.isArray(state.acquiredRealEstateTiers) ? state.acquiredRealEstateTiers : []
+      );
+      const props = Array.isArray(state.properties) ? state.properties : [];
+      const txs = Array.isArray(state.transactions) ? state.transactions : [];
+      for (const entry of REAL_ESTATE_TIER_LISTINGS) {
+        if (
+          props.some((p) => p.name === entry.listing.name) ||
+          txs.some(
+            (tx) =>
+              tx.category === 'Real Estate' &&
+              tx.description.includes(`Acquired ${entry.listing.name}`)
+          )
+        ) {
+          set.add(entry.tier);
+        }
+      }
+      return Array.from(set);
+    })(),
     inflationRate: typeof state.inflationRate === 'number' ? state.inflationRate : 0,
     inflationMultiplier:
       typeof state.inflationMultiplier === 'number' && state.inflationMultiplier > 0
@@ -300,6 +348,18 @@ export function isValidGameState(obj: unknown): obj is GameState {
   );
 }
 
+function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
 export function exportGameDataJson(state: GameState): void {
   const payload = {
     app: 'CASHFLOW',
@@ -309,14 +369,7 @@ export function exportGameDataJson(state: GameState): void {
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: 'application/json',
   });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `cashflow-save-Y${state.year}M${state.month}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, `cashflow-save-Y${state.year}M${state.month}.json`);
 }
 
 async function bytesToBase64(bytes: Uint8Array): Promise<string> {
@@ -550,14 +603,7 @@ export async function exportWebIntoAppZip(): Promise<void> {
   const blob = new Blob([zipBytes.slice().buffer], {
     type: 'application/zip',
   });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'CASHFLOW-WebIntoApp.zip';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, 'CASHFLOW-WebIntoApp.zip');
 }
 
 export async function exportOfflineBatLauncher(): Promise<void> {
@@ -580,14 +626,7 @@ export async function exportOfflineBatLauncher(): Promise<void> {
   const blob = new Blob([fullBat], {
     type: 'application/octet-stream',
   });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'CASHFLOW-Offline.bat';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, 'CASHFLOW-Offline.bat');
 }
 
 export function parseImportedGameJson(rawText: string): GameState | null {

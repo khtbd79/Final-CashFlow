@@ -10,7 +10,10 @@ import { MainMenuScreen } from './components/screens/MainMenuScreen';
 import { ProfessionSelectScreen } from './components/screens/ProfessionSelectScreen';
 import { SettingsScreen } from './components/screens/SettingsScreen';
 import { getT } from './data/i18n';
-import { generateTurnEvents } from './engine/events';
+import {
+  buildCharacterSignatureOpportunityCard,
+  generateTurnEvents,
+} from './engine/events';
 import { computeFinancialSummary } from './engine/finance';
 import {
   advanceMonth,
@@ -143,6 +146,7 @@ export default function App() {
           hydrated.pendingEvents.length === 0 &&
           hydrated.eventHistory.length === 0
         ) {
+          const hydSummary = computeFinancialSummary(hydrated);
           hydrated = {
             ...hydrated,
             pendingEvents: generateTurnEvents(
@@ -151,8 +155,40 @@ export default function App() {
               hydrated.market,
               [],
               hydrated.maritalStatus ?? 'single',
-              hydrated.inflationMultiplier ?? 1
+              hydrated.inflationMultiplier ?? 1,
+              {
+                professionId: hydrated.professionId,
+                cash: hydrated.cash,
+                passiveIncome: hydSummary.passiveIncome,
+                totalExpenses: hydSummary.totalExpenses,
+                netWorth: hydSummary.netWorth,
+                assetsCount: 0,
+                propertiesCount: 0,
+                activeAnnualTemplateIds: [],
+              }
             ),
+          };
+          saveGameToIndexedDB(hydrated);
+        } else if (
+          !loadSettings().ignoreEvents &&
+          !hydrated.pendingEvents.some((e) => e.isCharacterSignature || e.templateId.startsWith('char_opp_')) &&
+          !hydrated.eventHistory.some(
+            (e) =>
+              e.resolvedTurn === hydrated.currentTurn &&
+              (e.isCharacterSignature || e.templateId.startsWith('char_opp_'))
+          )
+        ) {
+          const hydSummary = computeFinancialSummary(hydrated);
+          const sigCard = buildCharacterSignatureOpportunityCard(
+            hydrated.professionId,
+            hydrated.currentTurn,
+            hydrated.cash,
+            hydSummary.netWorth,
+            hydrated.inflationMultiplier ?? 1
+          );
+          hydrated = {
+            ...hydrated,
+            pendingEvents: [sigCard, ...hydrated.pendingEvents],
           };
           saveGameToIndexedDB(hydrated);
         }

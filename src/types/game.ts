@@ -20,6 +20,7 @@ export type NavSection =
   | 'reports';
 
 export type LanguageCode = 'en' | 'bn' | 'es' | 'id';
+export type RealEstateTierId = 'economy' | 'standard' | 'premium' | 'luxury';
 
 export interface GameSettings {
   soundEnabled: boolean;
@@ -227,6 +228,8 @@ export type EventEffectType =
   | 'market_crash'
   | 'property_boom'
   | 'other_passive_income'
+  | 'venture_opportunity'
+  | 'speaking_opportunity'
   | 'take_emergency_loan'
   | 'new_baby'
   | 'divorce'
@@ -252,6 +255,10 @@ export interface GameEventCard {
   templateId: string;
   turnGenerated: number;
   category: EventCategory;
+  durationType?: 'monthly' | 'annual';
+  remainingMonths?: number;
+  expiresAtTurn?: number;
+  isCharacterSignature?: boolean;
   title: string;
   description: string;
   financialImpactSummary: string;
@@ -348,14 +355,20 @@ export interface TurnEventSummaryCard {
     | 'baby'
     | 'divorce'
     | 'tax_zakat'
+    | 'venture_win'
+    | 'venture_loss'
+    | 'lottery_win'
+    | 'lottery_loss'
     | 'resolved_event'
     | 'new_events';
+  templateId?: string;
   titleEn: string;
   titleBn: string;
   descriptionEn: string;
   descriptionBn: string;
   resultLabelEn?: string;
   resultLabelBn?: string;
+  amountDisplay?: number;
   highlightPct?: number;
   trendDeltaPct?: number;
   previousPct?: number;
@@ -398,6 +411,7 @@ export interface TurnSummary {
   passiveIncomeAfter?: number;
   passiveIncomeDelta?: number;
   freedomProgressPctAfter?: number;
+  capitalProgressPct?: number;
   freedomProgressDelta?: number;
   happinessAfter?: number;
   happinessDelta?: number;
@@ -405,6 +419,7 @@ export interface TurnSummary {
   actionsDuringTurn?: TurnActionItem[];
   investmentResults?: TurnInvestmentResultItem[];
   desireImpacts?: TurnDesireImpactItem[];
+  subscriptionImpacts?: TurnDesireImpactItem[];
   eventSummaryCards?: TurnEventSummaryCard[];
   eventsGeneratedCount: number;
   newVictoryTriggered: boolean;
@@ -524,6 +539,25 @@ export interface PendingOpportunityDeal {
   turnPurchased: number;
 }
 
+export interface PendingVentureDeal {
+  id: string;
+  eventId: string;
+  templateId: string;
+  kind: 'venture_opportunity' | 'speaking_opportunity';
+  titleEn: string;
+  titleBn: string;
+  successDescEn: string;
+  successDescBn: string;
+  failDescEn: string;
+  failDescBn: string;
+  cost: number;
+  winChance: number;
+  payoutMin: number;
+  payoutMax: number;
+  safeReturnOnMiss?: boolean;
+  turnPurchased: number;
+}
+
 export interface GameState {
   version: number;
   gameId: string;
@@ -547,6 +581,9 @@ export interface GameState {
   market: MarketState;
   pendingEvents: GameEventCard[];
   pendingOpportunityDeals?: PendingOpportunityDeal[];
+  pendingVentureDeals?: PendingVentureDeal[];
+  pendingLotteryTickets?: LotteryTicketId[];
+  turnActivityCards?: TurnEventSummaryCard[];
   eventHistory: GameEventCard[];
   transactions: TransactionRecord[];
   monthlyHistory: MonthlySnapshot[];
@@ -567,6 +604,7 @@ export interface GameState {
   completedEducationIds?: string[];
   educationBoostsById?: Record<string, number>;
   lastEducationYear?: number;
+  acquiredRealEstateTiers?: RealEstateTierId[];
   inflationRate?: number;
   inflationMultiplier?: number;
   maritalStatus?: MaritalStatus;

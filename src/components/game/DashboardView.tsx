@@ -1,8 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import {
   ArrowRight,
   Baby,
   Check,
+  Lock,
   Meh,
   Plus,
   Scale,
@@ -15,6 +16,7 @@ import {
   getEducationCourseTitle,
   getEffectiveEducationCost,
   getEffectiveHappinessCost,
+  getEffectiveInsurancePlanPremium,
   getEffectivePersonalAssetInsurance,
   getEffectivePersonalAssetPrice,
   getHappinessCardDescription,
@@ -104,11 +106,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onToggleInsurance,
   onPlayLottery,
 }) => {
-  const [lastLotteryOutcome, setLastLotteryOutcome] = useState<{
-    outcomeType: 'win' | 'loss';
-    delta: number;
-    title: string;
-  } | null>(null);
   const lastDeckActionTimeRef = useRef<number>(0);
 
   const lang = settings.language;
@@ -430,12 +427,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         />
 
         <div className="flex gap-3.5 overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y pb-2 snap-x snap-proximity -mx-4 px-4 sm:mx-0 sm:px-0">
-          {educationCourses.map((course) => {
+          {educationCourses.map((course, idx) => {
             const completed = completedEducationIds.has(course.id);
+            const missingPrereq = educationCourses
+              .slice(0, idx)
+              .find((prev) => !completedEducationIds.has(prev.id));
+            const lockedBySequence = !completed && Boolean(missingPrereq);
+            const prereqTitle = missingPrereq
+              ? getEducationCourseTitle(missingPrereq, lang)
+              : '';
             const earnedBoost = educationBoostsById[course.id];
             const cost = getEffectiveEducationCost(course, game);
             const affordable = summary.cashAsset >= cost;
-            const canTake = !completed && !educatedThisYear && affordable;
+            const canTake = !completed && !lockedBySequence && !educatedThisYear && affordable;
             const title = getEducationCourseTitle(course, lang);
 
             return (
@@ -444,9 +448,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 className={`snap-start shrink-0 w-[204px] sm:w-[228px] rounded-[24px] p-4 sm:p-5 text-center text-[#26201C] shadow-xl flex flex-col items-center justify-between transition-opacity ${
                   completed
                     ? 'bg-[#FFFDF7] ring-2 ring-[#169C5E]/50'
-                    : canTake
-                      ? 'bg-[#F7F3EE]'
-                      : 'bg-[#EAE5DD] opacity-65'
+                    : lockedBySequence
+                      ? 'bg-[#E5DFD6] opacity-60'
+                      : canTake
+                        ? 'bg-[#F7F3EE]'
+                        : 'bg-[#EAE5DD] opacity-65'
                 }`}
               >
                 <div>
@@ -478,6 +484,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <Check className="h-4 w-4 text-[#169C5E] stroke-[3]" />
                       <span>{t.dashboard.educationCompleted}</span>
                     </div>
+                  ) : lockedBySequence ? (
+                    <div className="space-y-1.5">
+                      <div
+                        aria-disabled="true"
+                        title={`${t.dashboard.educationLockedPrevPrefix} ${prereqTitle}`}
+                        className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#D3C7B8] text-[#5E544C] cursor-not-allowed"
+                      >
+                        <Lock className="h-5 w-5 stroke-[2.25]" />
+                      </div>
+                      <div className="text-xs font-semibold text-[#5E544C] leading-tight line-clamp-2">
+                        {t.dashboard.educationLockedPrevPrefix} {prereqTitle}
+                      </div>
+                    </div>
                   ) : (
                     <button
                       type="button"
@@ -506,7 +525,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="flex gap-3.5 overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y pb-2 snap-x snap-proximity -mx-4 px-4 sm:mx-0 sm:px-0">
           {INSURANCE_PLANS.filter((plan) => plan.id === 'health').map((plan) => {
             const active = Boolean(game.healthInsured);
-            const cantAffordEnroll = !active && summary.cashAsset < plan.monthlyPremium;
+            const premium = getEffectiveInsurancePlanPremium(plan, game);
+            const cantAffordEnroll = !active && summary.cashAsset < premium;
             return (
               <div
                 key={plan.id}
@@ -534,7 +554,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div className="w-full space-y-2.5">
                   <div>
                     <div className="font-mono text-xl font-bold text-[#26201C] tabular-nums">
-                      {formatCurrency(plan.monthlyPremium)}
+                      {formatCurrency(premium)}
                     </div>
                     <div className="text-sm font-medium text-[#5E544C]">{t.common.perMonth}</div>
                   </div>
@@ -720,15 +740,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           title={t.dashboard.lotteryTitle}
           subtitle={t.dashboard.lotterySubtitle}
           rightSlot={
-            lastLotteryOutcome ? (
-              <span
-                className={`rounded-full px-3 py-1 font-mono text-sm font-bold tabular-nums ${
-                  lastLotteryOutcome.outcomeType === 'win'
-                    ? 'bg-[#DCFCE7] text-[#169C5E]'
-                    : 'bg-[#FEE2E2] text-[#DC2626]'
-                }`}
-              >
-                {lastLotteryOutcome.title}: {formatCurrency(lastLotteryOutcome.delta, true)}
+            (game.pendingLotteryTickets ?? []).length > 0 ? (
+              <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-[#F7CA44]">
+                {lang === 'bn'
+                  ? `${(game.pendingLotteryTickets ?? []).length}টি টিকিট সারসংক্ষেপে`
+                  : `${(game.pendingLotteryTickets ?? []).length} in summary`}
               </span>
             ) : undefined
           }
@@ -777,16 +793,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <button
                       type="button"
                       disabled={!affordable}
-                      onClick={() => {
-                        const out = onPlayLottery(ticket.id);
-                        if (out) {
-                          setLastLotteryOutcome({
-                            outcomeType: out.outcomeType,
-                            delta: out.delta,
-                            title,
-                          });
-                        }
-                      }}
+                      onClick={() => onPlayLottery(ticket.id)}
                       className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#F7CA44] hover:bg-[#EBBF36] active:scale-95 text-[#26201C] shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                       aria-label={title}
                     >
