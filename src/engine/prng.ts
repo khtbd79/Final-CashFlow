@@ -58,14 +58,28 @@ export function roundMoney(val: number): number {
   return Math.round((val + Number.EPSILON) * 100) / 100;
 }
 
+function formatCompactMillion(dollars: number): string {
+  const millions = Math.round((dollars / 1_000_000 + Number.EPSILON) * 100) / 100;
+  const formatted = millions.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+  return `${formatted} M`;
+}
+
 export function formatCurrency(value: number, showSign = false): string {
   const abs = Math.abs(value);
   const roundedCents = Math.round((abs + Number.EPSILON) * 100);
-  const hasCents = roundedCents % 100 !== 0;
-  const formatted = (roundedCents / 100).toLocaleString('en-US', {
-    minimumFractionDigits: hasCents ? 2 : 0,
-    maximumFractionDigits: hasCents ? 2 : 0,
-  });
+  const formatted =
+    roundedCents >= 100_000_000
+      ? formatCompactMillion(roundedCents / 100)
+      : (() => {
+          const hasCents = roundedCents % 100 !== 0;
+          return (roundedCents / 100).toLocaleString('en-US', {
+            minimumFractionDigits: hasCents ? 2 : 0,
+            maximumFractionDigits: hasCents ? 2 : 0,
+          });
+        })();
   if (value < 0) return `-$${formatted}`;
   if (showSign && value > 0) return `+$${formatted}`;
   return `$${formatted}`;
@@ -73,10 +87,14 @@ export function formatCurrency(value: number, showSign = false): string {
 
 export function formatCurrencyExact(value: number): string {
   const abs = Math.abs(value);
-  const formatted = abs.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  const roundedCents = Math.round((abs + Number.EPSILON) * 100);
+  const formatted =
+    roundedCents >= 100_000_000
+      ? formatCompactMillion(roundedCents / 100)
+      : abs.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
   return value < 0 ? `-$${formatted}` : `$${formatted}`;
 }
 

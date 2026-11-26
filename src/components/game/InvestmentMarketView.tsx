@@ -1384,30 +1384,14 @@ export const InvestmentMarketView: React.FC<InvestmentMarketViewProps> = ({
                 />
               </div>
 
-              {sheetData.maxSteps <= 0 ? (
+              {sheetData.maxSteps <= 0 && (
                 <div className="text-center text-xs font-semibold text-[#DC2626]">
                   {tradeMode === 'withdraw'
                     ? t.market.noHoldingSelected
-                    : sheetData.category !== 'crypto' && summary.cashAsset >= 1
-                      ? t.market.onlyCryptoFullBalanceNote
-                      : language === 'bn'
-                        ? 'মূল ব্যালেন্সে পর্যাপ্ত টাকা নেই'
-                        : 'Insufficient main balance'}
+                    : language === 'bn'
+                      ? 'মূল ব্যালেন্সে পর্যাপ্ত টাকা নেই'
+                      : 'Insufficient main balance'}
                 </div>
-              ) : (
-                tradeMode === 'invest' && (
-                  <div
-                    className={`text-center text-[11px] font-semibold ${
-                      sheetData.category === 'crypto' ? 'text-[#169C5E]' : 'text-[#665B53]'
-                    }`}
-                  >
-                    {sheetData.category === 'crypto'
-                      ? language === 'bn'
-                        ? 'একমাত্র ক্রিপ্টোতেই মূল ব্যালেন্সের ১০০% বিনিয়োগ করা যাবে · মাসিক লভ্যাংশ মূল ব্যালেন্সে'
-                        : 'Up to 100% of main balance · Monthly yield credits directly to Cash'
-                      : t.market.onlyCryptoFullBalanceNote}
-                  </div>
-                )
               )}
 
               <button

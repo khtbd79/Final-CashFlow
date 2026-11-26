@@ -606,7 +606,6 @@ export default function App() {
           setTurnSummaryModal(null);
           window.scrollTo({ top: 0 });
         }}
-        onGoToEvents={() => setActiveSection('events')}
         onGoToTax={() =>
           setActiveSection(
             summary.zakatDueEffective > 0 && summary.incomeTaxDueEffective === 0

@@ -3,9 +3,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
-  Frown,
   HelpCircle,
-  Smile,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
@@ -20,7 +18,6 @@ interface TurnSummaryModalProps {
   summary: TurnSummary | null;
   language: LanguageCode;
   onClose: () => void;
-  onGoToEvents: () => void;
   onGoToTax?: () => void;
 }
 
@@ -30,17 +27,10 @@ function formatSignedPct(value: number): string {
   return `${sign}${Math.abs(value)}%`;
 }
 
-function formatSignedNum(value: number): string {
-  if (value === 0) return '0';
-  const sign = value > 0 ? '+' : '-';
-  return `${sign}${Math.abs(value)}`;
-}
-
 export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
   summary,
   language,
   onClose,
-  onGoToEvents,
   onGoToTax,
 }) => {
   const [bgError, setBgError] = useState(false);
@@ -81,16 +71,7 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
   const salaryChangePct = summary.salaryChangePct ?? 0;
 
   const investmentResults = summary.investmentResults ?? [];
-  const desireImpacts = summary.desireImpacts ?? [];
-  const subscriptionImpacts = summary.subscriptionImpacts ?? [];
   const eventCards = summary.eventSummaryCards ?? [];
-
-  const viewEventsText =
-    summary.eventsGeneratedCount === 1
-      ? t.turnSummary.viewEventsSingular
-      : isBn
-        ? `${summary.eventsGeneratedCount}${t.turnSummary.viewEventsPlural}`
-        : `View ${summary.eventsGeneratedCount} ${t.turnSummary.viewEventsPlural}`;
 
   const actions = summary.actionsDuringTurn ?? [];
   const passiveBreakdown = [
@@ -153,8 +134,8 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
         {showHelp && (
           <div className="rounded-2xl bg-[#222733]/95 border border-white/15 p-4 text-xs sm:text-sm text-white/90 leading-relaxed shadow-lg">
             {isBn
-              ? 'এই সারসংক্ষেপে আপনার সমাপ্ত মাসের মোট মূলধন ও আর্থিক স্বাধীনতার অগ্রগতি, বেতন, সক্রিয় বিনিয়োগের ফলাফল (%), আকাঙ্ক্ষা/সুখের পরিবর্তন এবং মাসের বিশেষ ইভেন্টসমূহ দেখানো হয়েছে। নিচে "চালিয়ে যান" বাটনে ক্লিক করলে নতুন মাস শুরু হবে।'
-              : 'This summary shows your ending Capital & Financial Freedom progress, Salary, active Investment returns (%), Desires/Happiness changes, and completed monthly Events. Tap "Continue" below to enter the new month.'}
+              ? 'এই সারসংক্ষেপে আপনার সমাপ্ত মাসের মোট মূলধন ও আর্থিক স্বাধীনতার অগ্রগতি, বেতন, সক্রিয় বিনিয়োগের ফলাফল (%) এবং মাসের বিশেষ ইভেন্টসমূহ দেখানো হয়েছে। নিচে "চালিয়ে যান" বাটনে ক্লিক করলে নতুন মাস শুরু হবে।'
+              : 'This summary shows your ending Capital & Financial Freedom progress, Salary, active Investment returns (%), and completed monthly Events. Tap "Continue" below to enter the new month.'}
           </div>
         )}
 
@@ -267,78 +248,6 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
             </div>
           )}
         </section>
-
-        {/* Desires Section (আকাঙ্ক্ষা) */}
-        <section className="space-y-2.5">
-          <h3 className="font-display text-lg font-bold text-white">
-            {isBn ? 'আকাঙ্ক্ষা' : 'Desires'}
-          </h3>
-
-          <div className="space-y-2.5">
-            {desireImpacts.map((item) => {
-              const isPos = item.delta >= 0;
-              return (
-                <div
-                  key={item.id}
-                  className="rounded-2xl bg-[#F6E7D7] px-4 py-3.5 text-[#26201C] shadow-md flex items-center justify-between gap-3"
-                >
-                  <span className="text-base font-bold text-[#26201C]">
-                    {isBn ? item.labelBn : item.labelEn}
-                  </span>
-                  <div className="inline-flex items-center gap-2 font-mono text-base font-bold tabular-nums">
-                    <span className={isPos ? 'text-[#169C5E]' : 'text-[#EF5A5A]'}>
-                      {formatSignedNum(item.delta)}
-                    </span>
-                    <span
-                      className={`flex h-6 w-6 items-center justify-center rounded-full text-white ${
-                        isPos ? 'bg-[#22C55E]' : 'bg-[#F87171]'
-                      }`}
-                    >
-                      {isPos ? <Smile className="h-4 w-4" /> : <Frown className="h-4 w-4" />}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Subscriptions Section (সাবস্ক্রিপশন) */}
-        {subscriptionImpacts.length > 0 && (
-          <section className="space-y-2.5">
-            <h3 className="font-display text-lg font-bold text-white">
-              {isBn ? 'সাবস্ক্রিপশন' : 'Subscriptions'}
-            </h3>
-
-            <div className="space-y-2.5">
-              {subscriptionImpacts.map((item) => {
-                const isPos = item.delta >= 0;
-                return (
-                  <div
-                    key={item.id}
-                    className="rounded-2xl bg-[#F6E7D7] px-4 py-3.5 text-[#26201C] shadow-md flex items-center justify-between gap-3"
-                  >
-                    <span className="text-base font-bold text-[#26201C]">
-                      {isBn ? item.labelBn : item.labelEn}
-                    </span>
-                    <div className="inline-flex items-center gap-2 font-mono text-base font-bold tabular-nums">
-                      <span className={isPos ? 'text-[#169C5E]' : 'text-[#EF5A5A]'}>
-                        {formatSignedNum(item.delta)}
-                      </span>
-                      <span
-                        className={`flex h-6 w-6 items-center justify-center rounded-full text-white ${
-                          isPos ? 'bg-[#22C55E]' : 'bg-[#F87171]'
-                        }`}
-                      >
-                        {isPos ? <Smile className="h-4 w-4" /> : <Frown className="h-4 w-4" />}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
 
         {/* Events Section (ইভেন্টগুলি) */}
         {eventCards.length > 0 && (
@@ -668,19 +577,6 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
                 {t.turnSummary.payZakatTaxBtn}
               </button>
             )}
-
-          {summary.eventsGeneratedCount > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onGoToEvents();
-              }}
-              className="w-full min-h-[46px] rounded-2xl bg-white/15 hover:bg-white/25 border border-white/20 px-4 py-2 text-xs sm:text-sm font-bold text-white transition-colors"
-            >
-              {viewEventsText}
-            </button>
-          )}
 
           <button
             type="button"
