@@ -43,6 +43,11 @@ export const FinancesView: React.FC<FinancesViewProps> = ({
       note: countWithNote(game.stocks.length, t.finances.stocksNote),
     },
     {
+      label: t.finances.cryptoYield,
+      value: summary.cryptoYieldIncome,
+      note: countWithNote(game.crypto.length, t.finances.cryptoNote),
+    },
+    {
       label: t.finances.interestIncome,
       value: summary.interestIncome,
       note: countWithNote(game.fixedIncome.length, t.finances.fixedNote),

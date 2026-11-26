@@ -506,8 +506,8 @@ export default function App() {
         onSellStock={(symbol, shares) =>
           applyEngineResult(sellStock(game, symbol, shares, lang))
         }
-        onBuyCrypto={(symbol, units) =>
-          applyEngineResult(buyCrypto(game, symbol, units, lang))
+        onBuyCrypto={(symbol, units, exactSpendAmount) =>
+          applyEngineResult(buyCrypto(game, symbol, units, lang, exactSpendAmount))
         }
         onSellCrypto={(symbol, units) =>
           applyEngineResult(sellCrypto(game, symbol, units, lang))

@@ -19,6 +19,7 @@ import {
   getVentureTitle,
   getWeddingCost,
   INSURANCE_PLANS,
+  isCryptoMatchedForProfession,
   isFixedIncomeMatchedForProfession,
   isStockMatchedForProfession,
   PERSONAL_ASSETS,
@@ -420,7 +421,7 @@ export function advanceMonth(
     txs = appendTx(txs, nextTurn, nextYear, nextMonth, 'Salary', 'Monthly Salary Credited', salaryReceived, runningCash);
   }
 
-  // 2. Stock Dividends, Gold Dividends, Rental, Automated Business & Other Passive Income -> direct to main cash account
+  // 2. Stock Dividends, Gold Dividends, Crypto Yield Dividends, Rental, Automated Business & Other Passive Income -> direct to main cash account
   let stockDividendIncome = 0;
   let goldDividendIncome = 0;
   for (const holding of state.stocks) {
@@ -432,6 +433,16 @@ export function advanceMonth(
     } else {
       stockDividendIncome = roundMoney(stockDividendIncome + itemDiv);
     }
+  }
+
+  let cryptoDividendIncome = 0;
+  for (const coin of state.crypto) {
+    const def = CRYPTO_CATALOG.find((c) => c.symbol === coin.symbol);
+    const price = state.market.crypto[coin.symbol]?.currentPrice ?? coin.avgBuyPrice;
+    const baseYield = (coin.units * price * (def?.annualDividendRate ?? 0)) / 12;
+    const matched = isCryptoMatchedForProfession(state.professionId, coin.symbol);
+    const itemDiv = roundMoney(matched ? baseYield * 1.2 : baseYield);
+    cryptoDividendIncome = roundMoney(cryptoDividendIncome + itemDiv);
   }
 
   const rentalIncome = summaryBefore.rentalIncome;
@@ -464,6 +475,20 @@ export function advanceMonth(
       'Passive Income',
       'Gold Investment Dividends Credited',
       goldDividendIncome,
+      runningCash
+    );
+  }
+
+  if (cryptoDividendIncome > 0) {
+    runningCash = roundMoney(runningCash + cryptoDividendIncome);
+    txs = appendTx(
+      txs,
+      nextTurn,
+      nextYear,
+      nextMonth,
+      'Passive Income',
+      'Crypto Staking & Yield Dividends Credited',
+      cryptoDividendIncome,
       runningCash
     );
   }
@@ -511,7 +536,7 @@ export function advanceMonth(
   }
 
   const cashPassiveNonInterest = roundMoney(
-    rentalIncome + dividendIncome + automatedBizRev + otherPassive
+    rentalIncome + dividendIncome + cryptoDividendIncome + automatedBizRev + otherPassive
   );
 
   if (activeBizRev > 0) {
@@ -1512,7 +1537,7 @@ export function advanceMonth(
     valBefore = roundMoney(valBefore);
     valAfter = roundMoney(valAfter);
     if (valBefore > 0) {
-      const amountDelta = roundMoney(valAfter - valBefore);
+      const amountDelta = roundMoney(valAfter - valBefore + cryptoDividendIncome);
       const returnPct = Math.round((amountDelta / valBefore) * 100);
       investmentResults.push({
         category: 'crypto',
@@ -1520,7 +1545,7 @@ export function advanceMonth(
         labelBn: 'ক্রিপ্টো',
         valueBefore: valBefore,
         valueAfter: valAfter,
-        cashEarned: 0,
+        cashEarned: cryptoDividendIncome,
         returnPct,
         amountDelta,
       });
@@ -1947,6 +1972,7 @@ export function advanceMonth(
     passiveIncomeReceived: totalPassiveIncomeReceived,
     stockDividendsReceived: stockDividendIncome,
     goldDividendsReceived: goldDividendIncome,
+    cryptoDividendsReceived: cryptoDividendIncome,
     bondInterestReceived: bondInterestPaid,
     savingsInterestReceived: savingsInterestPaid,
     rentalIncomeReceived: rentalIncome,
@@ -2071,6 +2097,16 @@ export function buyStock(
     };
   }
 
+  if (roundMoney(state.cash - totalCost) < 1) {
+    return {
+      state,
+      error:
+        lang === 'bn'
+          ? 'শুধুমাত্র ক্রিপ্টোতে মূল ব্যালেন্সের ১০০% (সকল টাকা) বিনিয়োগ করা যাবে; অন্যান্য বিনিয়োগে মূল ব্যালেন্সে কমপক্ষে $1 রাখতে হবে।'
+          : 'Only Crypto allows investing 100% of your main cash balance. Keep at least $1 in Cash for other investments.',
+    };
+  }
+
   const nextCash = roundMoney(state.cash - totalCost);
   const existing = state.stocks.find((h) => h.symbol === symbol);
   let nextStocks = [...state.stocks];
@@ -2187,29 +2223,60 @@ export function sellStock(
 // ==========================================
 // CRYPTOCURRENCY
 // ==========================================
+function roundCryptoUnits(val: number): number {
+  return Math.round((val + Number.EPSILON) * 1_000_000) / 1_000_000;
+}
+
 export function buyCrypto(
   state: GameState,
   symbol: string,
   units: number,
-  lang: LanguageCode = 'en'
+  lang: LanguageCode = 'en',
+  exactSpendAmount?: number
 ): EngineActionResult {
-  const qty = roundMoney(units);
-  if (qty <= 0) {
-    return {
-      state,
-      error: lang === 'bn' ? 'কেনার জন্য সঠিক পরিমাণ লিখুন।' : 'Enter a valid quantity to buy.',
-    };
-  }
-
   const def = CRYPTO_CATALOG.find((c) => c.symbol === symbol);
   const mkt = state.market.crypto[symbol];
   if (!def || !mkt) {
     return { state, error: lang === 'bn' ? 'সম্পদ পাওয়া যায়নি।' : 'Asset not found.' };
   }
 
+  let totalCost: number;
+  let qty: number;
+
+  if (exactSpendAmount !== undefined) {
+    const requestedSpend = roundMoney(exactSpendAmount);
+    if (requestedSpend <= 0) {
+      return {
+        state,
+        error: lang === 'bn' ? 'কেনার জন্য সঠিক পরিমাণ লিখুন।' : 'Enter a valid quantity to buy.',
+      };
+    }
+    if (requestedSpend > state.cash + 0.001) {
+      return {
+        state,
+        error:
+          lang === 'bn'
+            ? `পর্যাপ্ত নগদ নেই। প্রয়োজন ${formatCurrency(requestedSpend)}।`
+            : `Insufficient cash. Need ${formatCurrency(requestedSpend)}.`,
+      };
+    }
+    totalCost =
+      requestedSpend >= state.cash - 0.001 ? roundMoney(Math.max(0, state.cash)) : requestedSpend;
+    qty = roundCryptoUnits(totalCost / mkt.currentPrice);
+  } else {
+    qty = roundCryptoUnits(units);
+    totalCost = roundMoney(mkt.currentPrice * qty);
+  }
+
+  if (qty <= 0 || totalCost <= 0) {
+    return {
+      state,
+      error: lang === 'bn' ? 'কেনার জন্য সঠিক পরিমাণ লিখুন।' : 'Enter a valid quantity to buy.',
+    };
+  }
+
   const dispSym = localizeCrypto(symbol, lang).symbol;
-  const totalCost = roundMoney(mkt.currentPrice * qty);
-  if (state.cash < totalCost) {
+  if (state.cash + 0.001 < totalCost) {
     return {
       state,
       error:
@@ -2219,12 +2286,12 @@ export function buyCrypto(
     };
   }
 
-  const nextCash = roundMoney(state.cash - totalCost);
+  const nextCash = roundMoney(Math.max(0, state.cash - totalCost));
   const existing = state.crypto.find((c) => c.symbol === symbol);
   let nextCrypto = [...state.crypto];
 
   if (existing) {
-    const newUnits = roundMoney(existing.units + qty);
+    const newUnits = roundCryptoUnits(existing.units + qty);
     const newAvg = roundMoney((existing.units * existing.avgBuyPrice + totalCost) / newUnits);
     nextCrypto = nextCrypto.map((c) =>
       c.symbol === symbol ? { ...c, units: newUnits, avgBuyPrice: newAvg } : c
@@ -2264,7 +2331,7 @@ export function sellCrypto(
   units: number,
   lang: LanguageCode = 'en'
 ): EngineActionResult {
-  const qty = roundMoney(units);
+  const qty = roundCryptoUnits(units);
   if (qty <= 0) {
     return {
       state,
@@ -2274,7 +2341,7 @@ export function sellCrypto(
 
   const dispSym = localizeCrypto(symbol, lang).symbol;
   const existing = state.crypto.find((c) => c.symbol === symbol);
-  if (!existing || existing.units < qty - 0.0001) {
+  if (!existing || existing.units < qty - 0.000001) {
     return {
       state,
       error: lang === 'bn' ? `পর্যাপ্ত ${dispSym} ব্যালেন্স নেই।` : `Insufficient ${symbol} balance.`,
@@ -2287,9 +2354,9 @@ export function sellCrypto(
   const realizedGain = roundMoney((price - existing.avgBuyPrice) * sellQty);
   const nextCash = roundMoney(state.cash + proceeds);
 
-  const remaining = roundMoney(existing.units - sellQty);
+  const remaining = roundCryptoUnits(existing.units - sellQty);
   const nextCrypto =
-    remaining > 0.0001
+    remaining > 0.000001
       ? state.crypto.map((c) => (c.symbol === symbol ? { ...c, units: remaining } : c))
       : state.crypto.filter((c) => c.symbol !== symbol);
 
@@ -2357,6 +2424,16 @@ export function buyProperty(
         lang === 'bn'
           ? `পর্যাপ্ত নগদ নেই। প্রয়োজন ${formatCurrency(cashRequired)}, হাতে আছে ${formatCurrency(state.cash)}।`
           : `Insufficient cash. Need ${formatCurrency(cashRequired)}, available ${formatCurrency(state.cash)}.`,
+    };
+  }
+
+  if (cashRequired > 0 && roundMoney(state.cash - cashRequired) < 1) {
+    return {
+      state,
+      error:
+        lang === 'bn'
+          ? 'শুধুমাত্র ক্রিপ্টোতে মূল ব্যালেন্সের ১০০% (সকল টাকা) বিনিয়োগ করা যাবে; রিয়েল এস্টেট কিনতে মূল ব্যালেন্সে কমপক্ষে $1 রাখতে হবে।'
+          : 'Only Crypto allows investing 100% of your main cash balance. Keep at least $1 in Cash for Real Estate.',
     };
   }
 
@@ -2530,6 +2607,16 @@ export function buyOrStartBusiness(
         lang === 'bn'
           ? `পর্যাপ্ত নগদ নেই। প্রয়োজন ${formatCurrency(cost)}।`
           : `Insufficient cash. Need ${formatCurrency(cost)}.`,
+    };
+  }
+
+  if (cost > 0 && roundMoney(state.cash - cost) < 1) {
+    return {
+      state,
+      error:
+        lang === 'bn'
+          ? 'শুধুমাত্র ক্রিপ্টোতে মূল ব্যালেন্সের ১০০% (সকল টাকা) বিনিয়োগ করা যাবে; ব্যবসায় বিনিয়োগের পর মূল ব্যালেন্সে কমপক্ষে $1 রাখতে হবে।'
+          : 'Only Crypto allows investing 100% of your main cash balance. Keep at least $1 in Cash when acquiring a business.',
     };
   }
 
@@ -2744,6 +2831,16 @@ export function investFixedIncome(
         lang === 'bn'
           ? `পর্যাপ্ত নগদ নেই। হাতে আছে: ${formatCurrency(state.cash)}।`
           : `Insufficient cash. Available: ${formatCurrency(state.cash)}.`,
+    };
+  }
+
+  if (roundMoney(state.cash - investAmt) < 1) {
+    return {
+      state,
+      error:
+        lang === 'bn'
+          ? 'শুধুমাত্র ক্রিপ্টোতে মূল ব্যালেন্সের ১০০% (সকল টাকা) বিনিয়োগ করা যাবে; বন্ড ও সঞ্চয়ে মূল ব্যালেন্সে কমপক্ষে $1 রাখতে হবে।'
+          : 'Only Crypto allows investing 100% of your main cash balance. Keep at least $1 in Cash for Bonds & Savings.',
     };
   }
 

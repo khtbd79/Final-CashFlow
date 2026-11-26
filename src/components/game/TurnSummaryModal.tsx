@@ -96,6 +96,7 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
   const passiveBreakdown = [
     { label: t.turnSummary.stockDividends, val: summary.stockDividendsReceived ?? 0 },
     { label: t.turnSummary.goldDividends, val: summary.goldDividendsReceived ?? 0 },
+    { label: t.turnSummary.cryptoDividends, val: summary.cryptoDividendsReceived ?? 0 },
     { label: t.turnSummary.bondInterest, val: summary.bondInterestReceived ?? 0 },
     { label: t.turnSummary.savingsInterest, val: summary.savingsInterestReceived ?? 0 },
     { label: t.turnSummary.rentalIncome, val: summary.rentalIncomeReceived ?? 0 },

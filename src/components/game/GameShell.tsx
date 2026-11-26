@@ -58,7 +58,7 @@ interface GameShellProps {
   onPayMonthlyExpense: () => void;
   onBuyStock: (symbol: string, shares: number) => void;
   onSellStock: (symbol: string, shares: number) => void;
-  onBuyCrypto: (symbol: string, units: number) => void;
+  onBuyCrypto: (symbol: string, units: number, exactSpendAmount?: number) => void;
   onSellCrypto: (symbol: string, units: number) => void;
   onInvestFixed: (productId: string, amount: number) => void;
   onRedeemFixed: (fixedId: string) => void;

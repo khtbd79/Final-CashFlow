@@ -262,9 +262,11 @@ export interface TranslationPack {
     businessIncome: string;
     rentalIncome: string;
     dividendIncome: string;
+    cryptoYield: string;
     interestIncome: string;
     otherPassiveIncome: string;
     stocksNote: string;
+    cryptoNote: string;
     fixedNote: string;
     propertiesNote: string;
     royaltiesNote: string;
@@ -392,6 +394,7 @@ export interface TranslationPack {
     helpCrypto: string;
     helpGold: string;
     helpRealEstate: string;
+    onlyCryptoFullBalanceNote: string;
     rentalYieldHeader: string;
     reTierEconomy: string;
     reTierStandard: string;
@@ -572,6 +575,7 @@ export interface TranslationPack {
     directToCashNote: string;
     stockDividends: string;
     goldDividends: string;
+    cryptoDividends: string;
     bondInterest: string;
     savingsInterest: string;
     rentalIncome: string;
@@ -996,9 +1000,11 @@ const EN: TranslationPack = {
     businessIncome: 'Business Income',
     rentalIncome: 'Rental Income',
     dividendIncome: 'Dividend Income',
+    cryptoYield: 'Crypto Staking & Yield',
     interestIncome: 'Interest Income',
     otherPassiveIncome: 'Other Passive Income',
     stocksNote: 'stock positions',
+    cryptoNote: 'crypto assets',
     fixedNote: 'bonds & savings',
     propertiesNote: 'properties',
     royaltiesNote: 'Royalties & licenses',
@@ -1122,11 +1128,12 @@ const EN: TranslationPack = {
     withdrawAllAria: 'Switch slider to withdraw invested funds to balance',
     infoHelpAria: 'Investment details',
     positionsSuffix: 'positions',
-    helpStocks: 'Drag the slider right to allocate cash and tap Invest. Dividends credit to Cash monthly. Tap the yellow dollar tray icon to switch the slider to withdraw funds back to Cash.',
-    helpBonds: 'Drag the slider right to deposit into government bonds or high-yield savings. Interest pays monthly to Cash. Tap the yellow dollar tray icon to withdraw your chosen amount anytime.',
-    helpCrypto: 'High-volatility simulated crypto assets with no monthly dividend. Drag the slider right to invest, or tap the yellow dollar tray icon to withdraw any amount back to Cash.',
-    helpGold: 'Safe-haven Gold reserve that surges during Black Swan market crashes and pays monthly yield. Drag right to invest or tap the dollar tray icon to withdraw any amount to Cash.',
-    helpRealEstate: 'Acquire property classes to earn passive monthly rental income. Tap Invest on any class card when you have enough cash, or manage and sell owned properties anytime.',
+    helpStocks: 'Drag the slider right to allocate cash and tap Invest. Dividends credit to Cash monthly. At least $1 must stay in Cash (only Crypto allows investing 100%).',
+    helpBonds: 'Drag the slider right to deposit into government bonds or high-yield savings. Interest pays monthly to Cash. At least $1 must stay in Cash (only Crypto allows investing 100%).',
+    helpCrypto: 'Crypto pays monthly staking yield directly to Cash and is the ONLY investment where you can invest 100% of your main Cash balance. Tap the yellow dollar tray icon anytime to withdraw back to Cash.',
+    helpGold: 'Safe-haven Gold reserve that surges during Black Swan crashes and pays monthly dividends to Cash. At least $1 must stay in Cash (only Crypto allows investing 100%).',
+    helpRealEstate: 'Acquire property classes to earn monthly rental income credited directly to Cash. At least $1 must remain in your main balance.',
+    onlyCryptoFullBalanceNote: 'At least $1 must stay in main balance (only Crypto allows investing 100% of balance).',
     rentalYieldHeader: 'Rental Yield',
     reTierEconomy: 'Economy Class',
     reTierStandard: 'Standard Class',
@@ -1340,6 +1347,7 @@ const EN: TranslationPack = {
     directToCashNote: 'Credited directly to main cash account',
     stockDividends: 'Stock Market Dividends',
     goldDividends: 'Gold Investment Dividends',
+    cryptoDividends: 'Crypto Staking Dividends',
     bondInterest: 'Bond Monthly Interest',
     savingsInterest: 'Savings Monthly Interest',
     rentalIncome: 'Property Rental Income',
@@ -1770,9 +1778,11 @@ const BN: TranslationPack = {
     businessIncome: 'ব্যবসায়িক আয়',
     rentalIncome: 'ভাড়া আয়',
     dividendIncome: 'ডিভিডেন্ড আয়',
+    cryptoYield: 'ক্রিপ্টো লভ্যাংশ',
     interestIncome: 'সুদ আয়',
     otherPassiveIncome: 'অন্যান্য প্যাসিভ আয়',
     stocksNote: 'টি শেয়ার পজিশন',
+    cryptoNote: 'টি ক্রিপ্টো সম্পদ',
     fixedNote: 'টি বন্ড ও সঞ্চয়',
     propertiesNote: 'টি প্রপার্টি',
     royaltiesNote: 'রয়্যালটি ও লাইসেন্স',
@@ -1896,11 +1906,12 @@ const BN: TranslationPack = {
     withdrawAllAria: 'বিনিয়োগ থেকে পরিমাণমতো টাকা ব্যালেন্সে ফেরত আনতে স্লাইডার চালু করুন',
     infoHelpAria: 'বিনিয়োগ তথ্য',
     positionsSuffix: 'টি পজিশন',
-    helpStocks: 'স্লাইডার ডানদিকে টেনে মূল ব্যালেন্স থেকে টাকা বেছে নিয়ে বিনিয়োগ করুন। প্রতি মাসে লভ্যাংশ মূল ব্যালেন্সে জমা হয়। পরিমাণমতো টাকা ব্যালেন্সে ফেরত আনতে হলুদ ডলার আইকনে ক্লিক করে স্লাইডার ব্যবহার করুন।',
-    helpBonds: 'স্লাইডার ডানদিকে টেনে সরকারি বন্ড ও সঞ্চয়ে জমা করুন। প্রতি মাসে নির্ধারিত সুদ মূল ব্যালেন্সে জমা হয়। হলুদ ডলার আইকনে ক্লিক করে একই স্লাইডার টেনে প্রয়োজনমতো টাকা ফেরত আনতে পারবেন।',
-    helpCrypto: 'উচ্চ-অস্থির ক্রিপ্টো সম্পদ (কোনো মাসিক লভ্যাংশ নেই)। স্লাইডার ডানদিকে টেনে বিনিয়োগ করুন অথবা হলুদ ডলার আইকনে ক্লিক করে স্লাইডার দিয়ে পরিমাণমতো টাকা ব্যালেন্সে ফেরত আনুন।',
-    helpGold: 'নিরাপদ সোনা রিজার্ভ—বাজার ধসের সময় দাম বাড়ে এবং প্রতি মাসে লভ্যাংশ দেয়। স্লাইডার ডানদিকে টেনে বিনিয়োগ করুন অথবা ডলার আইকনে ক্লিক করে স্লাইডার দিয়ে প্রয়োজনমতো টাকা তুলুন।',
-    helpRealEstate: 'মাসিক প্যাসিভ ভাড়া আয় পেতে যেকোনো শ্রেণীর রিয়েল এস্টেটে বিনিয়োগ করুন। পর্যাপ্ত নগদ থাকলে পছন্দের যেকোনো কার্ডে বিনিয়োগ করুন বা নিচে মালিকানাধীন প্রপার্টি বিক্রি করুন।',
+    helpStocks: 'স্লাইডার ডানদিকে টেনে বিনিয়োগ করুন—প্রতি মাসে লভ্যাংশ সরাসরি মূল ব্যালেন্সে জমা হবে। মূল ব্যালেন্সে কমপক্ষে $1 রাখতে হবে (শুধুমাত্র ক্রিপ্টোতে ১০০% ব্যালেন্স বিনিয়োগ করা যাবে)।',
+    helpBonds: 'স্লাইডার ডানদিকে টেনে সরকারি বন্ড ও সঞ্চয়ে জমা করুন—প্রতি মাসে সুদ সরাসরি মূল ব্যালেন্সে জমা হয়। মূল ব্যালেন্সে কমপক্ষে $1 রাখতে হবে (শুধু ক্রিপ্টোতে ১০০% বিনিয়োগ করা যাবে)।',
+    helpCrypto: 'ক্রিপ্টোতে প্রতি মাসে লভ্যাংশ সরাসরি মূল ব্যালেন্সে যোগ হয় এবং একমাত্র ক্রিপ্টোতেই মূল ব্যালেন্সের ১০০% (সকল টাকা) বিনিয়োগ করা যাবে। হলুদ ডলার আইকনে ক্লিক করে স্লাইডার দিয়ে পরিমাণমতো টাকা ফেরত আনতে পারবেন।',
+    helpGold: 'নিরাপদ সোনা রিজার্ভ—বাজার ধসের সময় দাম বাড়ে এবং প্রতি মাসে লভ্যাংশ সরাসরি মূল ব্যালেন্সে যোগ হয়। মূল ব্যালেন্সে কমপক্ষে $1 রাখতে হবে।',
+    helpRealEstate: 'যেকোনো শ্রেণীর রিয়েল এস্টেটে বিনিয়োগ করুন—মাসিক ভাড়া আয় সরাসরি মূল ব্যালেন্সে জমা হবে। বিনিয়োগের পর মূল ব্যালেন্সে কমপক্ষে $1 রাখতে হবে।',
+    onlyCryptoFullBalanceNote: 'মূল ব্যালেন্সে কমপক্ষে $1 রাখতে হবে (শুধু ক্রিপ্টোতে ব্যালেন্সের ১০০% বিনিয়োগ করা যাবে)।',
     rentalYieldHeader: 'ভাড়া থেকে আয়',
     reTierEconomy: 'ইকোনমি ক্লাস',
     reTierStandard: 'স্ট্যান্ডার্ড ক্লাস',
@@ -2114,6 +2125,7 @@ const BN: TranslationPack = {
     directToCashNote: 'সরাসরি মূল অ্যাকাউন্টে জমা হয়েছে',
     stockDividends: 'শেয়ার বাজারের লভ্যাংশ',
     goldDividends: 'সোনা বিনিয়োগের লভ্যাংশ',
+    cryptoDividends: 'ক্রিপ্টো বিনিয়োগের লভ্যাংশ',
     bondInterest: 'বন্ডের মাসিক সুদ',
     savingsInterest: 'সঞ্চয় হিসাবের মাসিক সুদ',
     rentalIncome: 'প্রপার্টি ভাড়া আয়',

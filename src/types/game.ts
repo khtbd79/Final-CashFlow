@@ -106,6 +106,7 @@ export interface CryptoDefinition {
   name: string;
   basePrice: number;
   volatility: number;
+  annualDividendRate: number;
   description: string;
 }
 
@@ -391,6 +392,7 @@ export interface TurnSummary {
   passiveIncomeReceived: number;
   stockDividendsReceived?: number;
   goldDividendsReceived?: number;
+  cryptoDividendsReceived?: number;
   bondInterestReceived?: number;
   savingsInterestReceived?: number;
   rentalIncomeReceived?: number;
@@ -639,6 +641,7 @@ export interface FinancialSummary {
   activeBusinessIncome: number;
   rentalIncome: number;
   dividendIncome: number;
+  cryptoYieldIncome: number;
   interestIncome: number;
   otherPassiveIncome: number;
   passiveIncome: number;

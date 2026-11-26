@@ -4,7 +4,7 @@ import { getT } from '../../data/i18n';
 import { isBusinessMatchedForProfession } from '../../data/lifestyle';
 import { localizeBusiness } from '../../data/localization';
 import { BUSINESS_TEMPLATES } from '../../data/markets';
-import { formatCurrency } from '../../engine/prng';
+import { formatCurrency, roundMoney } from '../../engine/prng';
 import { BusinessListing, FinancialSummary, GameState, LanguageCode } from '../../types/game';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 
@@ -120,7 +120,7 @@ export const BusinessesView: React.FC<BusinessesViewProps> = ({
             <div className="flex items-end">
               {(() => {
                 const customLaunchCost = BUSINESS_TEMPLATES[customTemplateIdx]?.purchasePrice ?? 0;
-                const canLaunchCustom = summary.cashAsset >= customLaunchCost;
+                const canLaunchCustom = roundMoney(summary.cashAsset - customLaunchCost) >= 1;
                 return (
                   <button
                     type="button"
@@ -298,7 +298,7 @@ export const BusinessesView: React.FC<BusinessesViewProps> = ({
               ? Math.round(item.monthlyRevenue * 1.15)
               : item.monthlyRevenue;
             const netProfit = effectiveRev - item.monthlyOperatingExpenses;
-            const canAffordBiz = summary.cashAsset >= item.purchasePrice;
+            const canAffordBiz = roundMoney(summary.cashAsset - item.purchasePrice) >= 1;
             return (
               <div
                 key={item.id}

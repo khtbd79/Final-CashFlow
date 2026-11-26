@@ -850,6 +850,7 @@ export function localizeTransactionText(text: string, lang: LanguageCode): strin
   if (text === 'Monthly Salary Credited') return 'মাসিক বেতন জমা হয়েছে';
   if (text === 'Stock Market Dividends Credited') return 'শেয়ার বাজারের লভ্যাংশ মূল অ্যাকাউন্টে জমা';
   if (text === 'Gold Investment Dividends Credited') return 'সোনা বিনিয়োগের লভ্যাংশ মূল অ্যাকাউন্টে জমা';
+  if (text === 'Crypto Staking & Yield Dividends Credited') return 'ক্রিপ্টো বিনিয়োগের লভ্যাংশ মূল অ্যাকাউন্টে জমা';
   if (text === 'Bond Monthly Interest Credited') return 'বন্ডের মাসিক সুদ মূল অ্যাকাউন্টে জমা';
   if (text === 'Savings Monthly Interest Credited') return 'সঞ্চয়ের মাসিক সুদ মূল অ্যাকাউন্টে জমা';
   if (text === 'Property Rental Income Credited') return 'প্রপার্টি ভাড়া আয় মূল অ্যাকাউন্টে জমা';

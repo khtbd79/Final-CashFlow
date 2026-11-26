@@ -4,7 +4,7 @@ import { getT } from '../../data/i18n';
 import { isPropertyMatchedForProfession } from '../../data/lifestyle';
 import { localizeProperty } from '../../data/localization';
 import { calculateMonthlyLoanPayment } from '../../engine/finance';
-import { formatCurrency } from '../../engine/prng';
+import { formatCurrency, roundMoney } from '../../engine/prng';
 import {
   FinancialSummary,
   GameState,
@@ -223,9 +223,9 @@ export const PropertiesView: React.FC<PropertiesViewProps> = ({
               effectiveRent - item.maintenanceExpense - estMortgage;
             const cashNetFlow = effectiveRent - item.maintenanceExpense;
             const canFinance =
-              summary.cashAsset >= item.downPayment &&
+              roundMoney(summary.cashAsset - item.downPayment) >= 1 &&
               summary.remainingBorrowingCapacity >= item.loanAmount;
-            const canAllCash = summary.cashAsset >= item.purchasePrice;
+            const canAllCash = roundMoney(summary.cashAsset - item.purchasePrice) >= 1;
             const isCardInactive = !canFinance && !canAllCash;
 
             return (

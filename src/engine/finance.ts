@@ -4,10 +4,12 @@ import {
   getPersonalAssetById,
   INSURANCE_PLANS,
   isBusinessMatchedForProfession,
+  isCryptoMatchedForProfession,
   isFixedIncomeMatchedForProfession,
   isPropertyMatchedForProfession,
   isStockMatchedForProfession,
 } from '../data/lifestyle';
+import { CRYPTO_CATALOG } from '../data/markets';
 import {
   FinancialSummary,
   GameState,
@@ -117,6 +119,21 @@ export function computeFinancialSummary(state: GameState): FinancialSummary {
   }
   dividendIncome = roundMoney(dividendIncome);
 
+  let cryptoYieldIncome = 0;
+  for (const coin of state.crypto) {
+    const def = CRYPTO_CATALOG.find((c) => c.symbol === coin.symbol);
+    const price = state.market.crypto[coin.symbol]?.currentPrice ?? coin.avgBuyPrice;
+    const baseYield = (coin.units * price * (def?.annualDividendRate ?? 0)) / 12;
+    const matched = isCryptoMatchedForProfession(state.professionId, coin.symbol);
+    if (matched) {
+      characterSynergyBonusIncome += roundMoney(baseYield * 0.2);
+      cryptoYieldIncome += roundMoney(baseYield * 1.2);
+    } else {
+      cryptoYieldIncome += roundMoney(baseYield);
+    }
+  }
+  cryptoYieldIncome = roundMoney(cryptoYieldIncome);
+
   let interestIncome = 0;
   for (const fi of state.fixedIncome) {
     const matched = isFixedIncomeMatchedForProfession(state.professionId, fi.productId);
@@ -134,6 +151,7 @@ export function computeFinancialSummary(state: GameState): FinancialSummary {
   const passiveIncome = roundMoney(
     rentalIncome +
       dividendIncome +
+      cryptoYieldIncome +
       interestIncome +
       otherPassiveIncome +
       automatedBusinessIncome
@@ -144,6 +162,7 @@ export function computeFinancialSummary(state: GameState): FinancialSummary {
       businessIncome +
       rentalIncome +
       dividendIncome +
+      cryptoYieldIncome +
       interestIncome +
       otherPassiveIncome
   );
@@ -401,6 +420,7 @@ export function computeFinancialSummary(state: GameState): FinancialSummary {
     activeBusinessIncome,
     rentalIncome,
     dividendIncome,
+    cryptoYieldIncome,
     interestIncome,
     otherPassiveIncome,
     passiveIncome,

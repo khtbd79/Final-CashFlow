@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Banknote, ChevronDown, PiggyBank, TrendingUp } from 'lucide-react';
 import { getT } from '../../data/i18n';
 import {
+  isCryptoMatchedForProfession,
   isFixedIncomeMatchedForProfession,
   isPropertyMatchedForProfession,
   isStockMatchedForProfession,
@@ -124,6 +125,16 @@ function formatCleanMoney(val: number): string {
     return formatCurrency(rounded);
   }
   return formatCurrencyExact(val);
+}
+
+function roundCryptoUnits(val: number): number {
+  return Math.round((val + Number.EPSILON) * 1_000_000) / 1_000_000;
+}
+
+function formatCryptoUnits(units: number): string {
+  const rounded = roundCryptoUnits(units);
+  if (rounded >= 1) return Number(rounded.toFixed(4)).toString();
+  return Number(rounded.toFixed(6)).toString();
 }
 
 const DollarWithdrawTrayIcon: React.FC<{ className?: string; active?: boolean }> = ({
@@ -497,7 +508,7 @@ interface InvestmentMarketViewProps {
   language: LanguageCode;
   onBuyStock: (symbol: string, shares: number) => void;
   onSellStock: (symbol: string, shares: number) => void;
-  onBuyCrypto: (symbol: string, units: number) => void;
+  onBuyCrypto: (symbol: string, units: number, exactSpendAmount?: number) => void;
   onSellCrypto: (symbol: string, units: number) => void;
   onInvestFixed: (productId: string, amount: number) => void;
   onRedeemFixed: (fixedId: string) => void;
@@ -646,8 +657,11 @@ export const InvestmentMarketView: React.FC<InvestmentMarketViewProps> = ({
       title: t.market.cryptoCardTitle,
       label: t.market.investedLabel,
       amount: cryptoVal,
-      subtext: formatDeltaSummary(cryptoPnl, cryptoPct),
-      subtextTone: cryptoPnl > 0 ? 'pos' : cryptoPnl < 0 ? 'neg' : 'neutral',
+      subtext:
+        summary.cryptoYieldIncome > 0
+          ? `${formatDeltaSummary(cryptoPnl, cryptoPct)} · +${formatCurrency(summary.cryptoYieldIncome)}${t.common.perMonth}`
+          : formatDeltaSummary(cryptoPnl, cryptoPct),
+      subtextTone: cryptoPnl > 0 || summary.cryptoYieldIncome > 0 ? 'pos' : cryptoPnl < 0 ? 'neg' : 'neutral',
       wavePath: WAVE_PATHS[2],
       onClick: () => openCategorySheet('crypto'),
     },
@@ -738,9 +752,10 @@ export const InvestmentMarketView: React.FC<InvestmentMarketViewProps> = ({
 
       const selectedHolding = categoryHoldings.find((h) => h.symbol === def.symbol);
       const isWithdraw = tradeMode === 'withdraw';
+      const maxInvestableCash = Math.max(0, roundMoney(summary.cashAsset - 1));
       const maxSteps = isWithdraw
         ? Math.max(0, selectedHolding?.shares ?? 0)
-        : Math.max(0, Math.floor(summary.cashAsset / unitPrice));
+        : Math.max(0, Math.floor(maxInvestableCash / unitPrice));
       const clampedSteps = Math.min(sliderStep, maxSteps);
       const actionAmount = roundMoney(clampedSteps * unitPrice);
       const actionUnitsLabel =
@@ -770,7 +785,7 @@ export const InvestmentMarketView: React.FC<InvestmentMarketViewProps> = ({
         actionUnitsLabel,
         canConfirm: isWithdraw
           ? clampedSteps > 0 && (selectedHolding?.shares ?? 0) >= clampedSteps
-          : clampedSteps > 0 && actionAmount <= summary.cashAsset,
+          : clampedSteps > 0 && roundMoney(summary.cashAsset - actionAmount) >= 1,
         onConfirm: () => {
           if (clampedSteps <= 0) return;
           if (isWithdraw) {
@@ -835,10 +850,11 @@ export const InvestmentMarketView: React.FC<InvestmentMarketViewProps> = ({
               ? heldProdTotal
               : Math.min(heldProdTotal, Math.max(1, Math.round((heldProdTotal * clampedSteps) / maxSteps)));
       } else {
-        const canAffordMin = summary.cashAsset >= prod.minAmount;
+        const maxInvestableCash = Math.max(0, roundMoney(summary.cashAsset - 1));
+        const canAffordMin = maxInvestableCash >= prod.minAmount;
         const dollarStep = 100;
         maxSteps = canAffordMin
-          ? 1 + Math.floor((summary.cashAsset - prod.minAmount) / dollarStep)
+          ? 1 + Math.floor((maxInvestableCash - prod.minAmount) / dollarStep)
           : 0;
         clampedSteps = Math.min(sliderStep, maxSteps);
         actionAmount =
@@ -871,7 +887,7 @@ export const InvestmentMarketView: React.FC<InvestmentMarketViewProps> = ({
         actionUnitsLabel: '',
         canConfirm: isWithdraw
           ? actionAmount > 0 && heldProdTotal > 0
-          : actionAmount >= prod.minAmount && actionAmount <= summary.cashAsset,
+          : actionAmount >= prod.minAmount && roundMoney(summary.cashAsset - actionAmount) >= 1,
         onConfirm: () => {
           if (isWithdraw) {
             if (actionAmount <= 0) return;
@@ -928,13 +944,16 @@ export const InvestmentMarketView: React.FC<InvestmentMarketViewProps> = ({
     const heldUnits = heldCoin?.units ?? 0;
     const heldCoinVal = roundMoney(heldUnits * unitPrice);
 
+    const matchedCrypto = isCryptoMatchedForProfession(game.professionId, coin.symbol);
+    const effYieldRate = coin.annualDividendRate * (matchedCrypto ? 1.2 : 1);
+
     let maxSteps = 0;
     let clampedSteps = 0;
     let unitsToTrade = 0;
     let actionAmount = 0;
 
     if (isWithdraw) {
-      maxSteps = heldUnits <= 0 ? 0 : Math.min(100, Math.max(10, Math.round(heldUnits * 100)));
+      maxSteps = heldUnits <= 0 ? 0 : Math.min(100, Math.max(10, Math.round(heldCoinVal)));
       clampedSteps = Math.min(sliderStep, maxSteps);
       if (clampedSteps > 0 && maxSteps > 0) {
         if (clampedSteps >= maxSteps) {
@@ -943,35 +962,44 @@ export const InvestmentMarketView: React.FC<InvestmentMarketViewProps> = ({
         } else {
           unitsToTrade = Math.min(
             heldUnits,
-            Math.max(0.01, Math.round(((heldUnits * clampedSteps) / maxSteps) * 100) / 100)
+            Math.max(0.000001, roundCryptoUnits((heldUnits * clampedSteps) / maxSteps))
           );
           actionAmount = roundMoney(unitsToTrade * unitPrice);
         }
       }
     } else {
-      const canAffordMinUnit = Math.floor((summary.cashAsset / unitPrice) * 100) / 100 >= 0.01;
-      const baseStep = summary.cashAsset >= 2000 ? 100 : summary.cashAsset >= 200 ? 10 : 1;
-      const dollarStep =
-        canAffordMinUnit &&
-        Math.floor(((Math.floor(summary.cashAsset / baseStep) * baseStep) / unitPrice) * 100) / 100 < 0.01
-          ? 1
-          : baseStep;
-      maxSteps = canAffordMinUnit
-        ? Math.max(0, Math.floor(summary.cashAsset / dollarStep))
-        : 0;
+      const availableCash = roundMoney(Math.max(0, summary.cashAsset));
+      maxSteps =
+        availableCash <= 0
+          ? 0
+          : availableCash < 1
+            ? 1
+            : Math.min(200, Math.max(10, Math.round(availableCash)));
       clampedSteps = Math.min(sliderStep, maxSteps);
-      const rawDollar = clampedSteps * dollarStep;
-      unitsToTrade = Math.floor((rawDollar / unitPrice) * 100) / 100;
-      actionAmount = roundMoney(unitsToTrade * unitPrice);
+      if (clampedSteps > 0 && maxSteps > 0) {
+        if (clampedSteps >= maxSteps) {
+          actionAmount = availableCash;
+          unitsToTrade = roundCryptoUnits(availableCash / unitPrice);
+        } else {
+          const targetDollar = roundMoney((availableCash * clampedSteps) / maxSteps);
+          actionAmount = Math.min(availableCash, Math.max(0.01, targetDollar));
+          unitsToTrade = roundCryptoUnits(actionAmount / unitPrice);
+        }
+      }
     }
+
+    const yieldSuffix =
+      summary.cryptoYieldIncome > 0
+        ? ` (+${formatCurrency(summary.cryptoYieldIncome)}${t.common.perMonth})`
+        : '';
 
     let qtyLine = '';
     if (game.crypto.length === 1) {
       const c = game.crypto[0];
-      qtyLine = `${t.market.quantityLabel}: ${c.units} @ ${formatCleanMoney(c.avgBuyPrice)}`;
+      qtyLine = `${t.market.quantityLabel}: ${formatCryptoUnits(c.units)} @ ${formatCleanMoney(c.avgBuyPrice)}${yieldSuffix}`;
     } else if (game.crypto.length > 1) {
-      const totalUnits = roundMoney(game.crypto.reduce((acc, c) => acc + c.units, 0));
-      qtyLine = `${t.market.quantityLabel}: ${totalUnits} (${game.crypto.length} ${t.market.positionsSuffix})`;
+      const totalUnits = roundCryptoUnits(game.crypto.reduce((acc, c) => acc + c.units, 0));
+      qtyLine = `${t.market.quantityLabel}: ${formatCryptoUnits(totalUnits)} (${game.crypto.length} ${t.market.positionsSuffix})${yieldSuffix}`;
     }
 
     const coinLoc = localizeCrypto(coin.symbol, language);
@@ -980,7 +1008,7 @@ export const InvestmentMarketView: React.FC<InvestmentMarketViewProps> = ({
       category: 'crypto' as const,
       title: t.market.cryptoCardTitle,
       priceLabel: `${t.market.currentPriceLabel} ${formatCleanMoney(unitPrice)}`,
-      helpText: t.market.helpCrypto,
+      helpText: `${t.market.helpCrypto} (${(effYieldRate * 100).toFixed(1)}% ${t.common.apy})`,
       stat1: Math.round(recentReturnPct),
       stat5: fiveYrPct,
       stat10: tenYrPct,
@@ -992,14 +1020,18 @@ export const InvestmentMarketView: React.FC<InvestmentMarketViewProps> = ({
       maxSteps,
       clampedSteps,
       actionAmount,
-      actionUnitsLabel: isWithdraw && unitsToTrade > 0 ? `${unitsToTrade} ${coinLoc.symbol}` : '',
-      canConfirm: unitsToTrade > 0 && (isWithdraw ? heldUnits > 0 : actionAmount <= summary.cashAsset),
+      actionUnitsLabel:
+        isWithdraw && unitsToTrade > 0 ? `${formatCryptoUnits(unitsToTrade)} ${coinLoc.symbol}` : '',
+      canConfirm:
+        unitsToTrade > 0 &&
+        actionAmount > 0 &&
+        (isWithdraw ? heldUnits > 0 : actionAmount <= summary.cashAsset + 0.001),
       onConfirm: () => {
-        if (unitsToTrade <= 0) return;
+        if (unitsToTrade <= 0 || actionAmount <= 0) return;
         if (isWithdraw) {
           onSellCrypto(coin.symbol, unitsToTrade);
         } else {
-          onBuyCrypto(coin.symbol, unitsToTrade);
+          onBuyCrypto(coin.symbol, unitsToTrade, actionAmount);
         }
         setSliderStep(0);
       },
@@ -1031,6 +1063,7 @@ export const InvestmentMarketView: React.FC<InvestmentMarketViewProps> = ({
     game,
     summary.cashAsset,
     summary.interestIncome,
+    summary.cryptoYieldIncome,
     goldHolding,
     goldVal,
     goldPnl,
@@ -1351,14 +1384,30 @@ export const InvestmentMarketView: React.FC<InvestmentMarketViewProps> = ({
                 />
               </div>
 
-              {sheetData.maxSteps <= 0 && (
+              {sheetData.maxSteps <= 0 ? (
                 <div className="text-center text-xs font-semibold text-[#DC2626]">
                   {tradeMode === 'withdraw'
                     ? t.market.noHoldingSelected
-                    : language === 'bn'
-                      ? 'মূল ব্যালেন্সে পর্যাপ্ত টাকা নেই'
-                      : 'Insufficient main balance'}
+                    : sheetData.category !== 'crypto' && summary.cashAsset >= 1
+                      ? t.market.onlyCryptoFullBalanceNote
+                      : language === 'bn'
+                        ? 'মূল ব্যালেন্সে পর্যাপ্ত টাকা নেই'
+                        : 'Insufficient main balance'}
                 </div>
+              ) : (
+                tradeMode === 'invest' && (
+                  <div
+                    className={`text-center text-[11px] font-semibold ${
+                      sheetData.category === 'crypto' ? 'text-[#169C5E]' : 'text-[#665B53]'
+                    }`}
+                  >
+                    {sheetData.category === 'crypto'
+                      ? language === 'bn'
+                        ? 'একমাত্র ক্রিপ্টোতেই মূল ব্যালেন্সের ১০০% বিনিয়োগ করা যাবে · মাসিক লভ্যাংশ মূল ব্যালেন্সে'
+                        : 'Up to 100% of main balance · Monthly yield credits directly to Cash'
+                      : t.market.onlyCryptoFullBalanceNote}
+                  </div>
+                )
               )}
 
               <button
@@ -1488,7 +1537,7 @@ export const InvestmentMarketView: React.FC<InvestmentMarketViewProps> = ({
             {/* Horizontal Scrollable Pastel Property Tier Cards */}
             <div className="mt-2.5 -mx-4 sm:-mx-5 px-4 sm:px-5 flex items-stretch gap-3.5 overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y pb-1.5 snap-x snap-mandatory">
               {REAL_ESTATE_TIERS.map((item) => {
-                const canAfford = summary.cashAsset >= item.listing.purchasePrice;
+                const canAfford = roundMoney(summary.cashAsset - item.listing.purchasePrice) >= 1;
                 const tierLabel =
                   item.tier === 'economy'
                     ? t.market.reTierEconomy
